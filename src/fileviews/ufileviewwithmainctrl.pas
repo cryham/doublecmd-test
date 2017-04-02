@@ -1544,8 +1544,10 @@ begin
         {$IFDEF LCLGTK2}
         edtRename.SelStart:=1;
         {$ENDIF}
-        edtRename.SelStart:=0;
-        edtRename.SelLength:=FRenFile.LenNam;
+        edtRename.SelStart:=FRenFile.LenNam;  //cryham
+        edtRename.SelLength:=0;  // select nothing
+        //edtRename.SelStart:=0;
+        //edtRename.SelLength:=FRenFile.LenNam;
       end;
     rfatExt :
       begin
