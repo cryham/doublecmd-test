@@ -7878,7 +7878,7 @@ msgid "SUID"
 msgstr ""
 
 #: tfrmsetfileproperties.chkarchive.caption
-msgid "Archive"
+msgid "&Archive"
 msgstr ""
 
 #: tfrmsetfileproperties.chkcreationtime.caption
@@ -7886,7 +7886,7 @@ msgid "Created:"
 msgstr ""
 
 #: tfrmsetfileproperties.chkhidden.caption
-msgid "Hidden"
+msgid "&Hidden"
 msgstr ""
 
 #: tfrmsetfileproperties.chklastaccesstime.caption
@@ -7898,7 +7898,7 @@ msgid "Modified:"
 msgstr ""
 
 #: tfrmsetfileproperties.chkreadonly.caption
-msgid "Read only"
+msgid "&Read only"
 msgstr ""
 
 #: tfrmsetfileproperties.chkrecursive.caption
@@ -7906,7 +7906,7 @@ msgid "Including subfolders"
 msgstr ""
 
 #: tfrmsetfileproperties.chksystem.caption
-msgid "System"
+msgid "&System"
 msgstr ""
 
 #: tfrmsetfileproperties.gbtimesamp.caption
