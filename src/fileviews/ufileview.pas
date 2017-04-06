@@ -1306,7 +1306,7 @@ begin
     if FRecentlyUpdatedFiles.Find(AFile) < 0 then
     begin
       FRecentlyUpdatedFiles.Add(AFile);
-      AFile.RecentlyUpdatedPct := 100;
+      AFile.RecentlyUpdatedPct := 40;
     end;
   end;
 end;
