@@ -364,7 +364,7 @@ uses uFindFiles, Forms, Controls, Dialogs, Clipbrd, strutils, LCLProc, HelpIntfs
      dmHelpManager, typinfo, fMain, fPackDlg, fMkDir, DCDateTimeUtils, KASToolBar, KASToolItems,
      fExtractDlg, fAbout, fOptions, fDiffer, fFindDlg, fSymLink, fHardLink, fMultiRename,
      fLinker, fSplitter, fDescrEdit, fCheckSumVerify, fCheckSumCalc, fSetFileProperties,
-     uLng, uLog, uShowMsg, uOSForms, uOSUtils, uDCUtils, uBriefFileView,
+     uLng, uLog, uShowMsg, uOSForms, uOSUtils, uDCUtils, uTypes, uBriefFileView,
      uShowForm, uShellExecute, uClipboard, uHash, uDisplayFile, uLuaPas,
      uFilePanelSelect, uFileSystemFileSource, uQuickViewPanel, Math,
      uOperationsManager, uFileSourceOperationTypes, uWfxPluginFileSource,
@@ -555,7 +555,8 @@ begin
     CalcStatisticsOperationStatistics := CalcStatisticsOperation.RetrieveStatistics;
     with CalcStatisticsOperationStatistics do
     begin
-      msgOK(Format(rsSpaceMsg, [Files, Directories, cnvFormatFileSize(Size), Numb2USA(IntToStr(Size))]));
+      msgOK(Format(rsSpaceMsg, [Files, Directories,
+        cnvFormatFileSize(Size, fsfFloat, 3), cnvFormatFileSize(Size, fsfByte, 0)] ));
     end;
   end;
 end;
