@@ -361,19 +361,19 @@ begin
   case FSF of
   fsfFloat:
   begin
-    if iSize div (1024 * 1024 * 1024) > 0 then
+    if iSize div (1000 * 1000 * 1000) > 0 then
     begin
-      Result:= FloatToStrF(FloatSize / (1024 * 1024 * 1024), ffFixed, 15, Number) + ' G'
+      Result:= FloatToStrF(FloatSize / (1000 * 1000 * 1000), ffFixed, 15, Number) + ' G'
     end
     else
-    if iSize div (1024 * 1024) > 0 then
+    if iSize div (1000 * 1000) > 0 then
     begin
-      Result:= FloatToStrF(FloatSize / (1024 * 1024), ffFixed, 15, Number) + ' M'
+      Result:= FloatToStrF(FloatSize / (1000 * 1000), ffFixed, 15, Number) + ' M'
     end
     else
-    if iSize div 1024 > 0 then
+    if iSize div 1000 > 0 then
     begin
-      Result:= FloatToStrF(FloatSize / 1024, ffFixed, 15, Number) + ' K'
+      Result:= FloatToStrF(FloatSize / 1000, ffFixed, 15, Number) + ' K'
     end
     else
       Result:= IntToStr(iSize);
@@ -384,15 +384,15 @@ begin
   end;
   fsfKilo:
   begin
-    Result:=FloatToStrF(FloatSize / 1024, ffFixed, 15, Number) + ' K'
+    Result:=FloatToStrF(FloatSize / 1000, ffFixed, 15, Number) + ' K'
   end;
   fsfMega:
   begin
-    Result:=FloatToStrF(FloatSize / (1024 * 1024), ffFixed, 15, Number) + ' M'
+    Result:=FloatToStrF(FloatSize / (1000 * 1000), ffFixed, 15, Number) + ' M'
   end;
   fsfGiga:
   begin
-    Result:=FloatToStrF(FloatSize / (1024 * 1024 * 1024), ffFixed, 15, Number) + ' G'
+    Result:=FloatToStrF(FloatSize / (1000 * 1000 * 1000), ffFixed, 15, Number) + ' G'
   end;
   end;
 end;
