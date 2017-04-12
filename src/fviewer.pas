@@ -451,7 +451,9 @@ begin
   FontOptionsToFont(gFonts[dcfMain],memFolder.Font);
   memFolder.Color:=gBackColor;
 
-//  This temporary code is for debug
+  SetNormalViewerFont;
+
+  //  This temporary code is for debug
   StartX:=0;
   StartY:=0;
   EndX:=Image.Width-1;
@@ -1111,9 +1113,9 @@ begin
   begin
     with ViewerControl do
       begin
-        Color:= clWindow;
-        Font.Color:= clWindowText;
-        Font.Quality:= fqDefault;
+        Color:= gBookBackgroundColor; //clWindow;
+        Font.Color:= gBookFontColor; //clWindowText;
+        Font.Quality:= fqAntialiased; //fqDefault;
         ColCount:= 1;
       end;
     FontOptionsToFont(gFonts[dcfViewer], ViewerControl.Font);
