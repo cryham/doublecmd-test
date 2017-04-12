@@ -53,6 +53,7 @@ type
     cbUseSubs: TCheckBox;
     cmbExtensionStyle: TComboBox;
     cbPresets: TComboBox;
+    lbPresets: TLabel;
     mnuEditNames: TMenuItem;
     mnuLoadFromFile: TMenuItem;
     miDay2: TMenuItem;
@@ -62,21 +63,17 @@ type
     pnlOptions: TPanel;
     pmEditDirect: TPopupMenu;
     StringGrid: TStringGrid;
-    gbPresets: TGroupBox;
-    gbMaska: TGroupBox;
     lbName: TLabel;
     lbExt: TLabel;
     edName: TEdit;
     edExt: TEdit;
     btnNameMenu: TButton;
     btnExtMenu: TButton;
-    gbFindReplace: TGroupBox;
     lbFind: TLabel;
     lbReplace: TLabel;
     edFind: TEdit;
     edReplace: TEdit;
     cmbNameStyle: TComboBox;
-    gbCounter: TGroupBox;
     lbStNb: TLabel;
     lbInterval: TLabel;
     lbWidth: TLabel;
@@ -84,8 +81,6 @@ type
     edInterval: TEdit;
     cmbxWidth: TComboBox;
     btnRename: TButton;
-    btnClose: TButton;
-    gbLog: TGroupBox;
     edFile: TEdit;
     cbLog: TCheckBox;
     btnRestore: TButton;
@@ -124,8 +119,10 @@ type
     procedure btnDeletePresetClick(Sender: TObject);
     procedure cbRegExpChange(Sender: TObject);
     procedure cmbNameStyleChange(Sender: TObject);
+    procedure KeyDownHandler(Sender: TObject; var Key: Word; Shift: TShiftState);
     procedure mnuEditNamesClick(Sender: TObject);
     procedure mnuLoadFromFileClick(Sender: TObject);
+    procedure OnSelect(Sender: TObject);
     procedure StringGridKeyDown(Sender: TObject; var Key: Word;
       Shift: TShiftState);
     procedure StringGridMouseDown(Sender: TObject; Button: TMouseButton;
@@ -296,6 +293,7 @@ begin
 
   // Set default values for controls.
   btnRestoreClick(nil);
+  KeyPreview := True;  // for KeyDownHandler
 
   // Initialize presets.
   LoadPresets;
@@ -465,6 +463,24 @@ begin
   StringGridTopLeftChanged(StringGrid);
 end;
 
+procedure TfrmMultiRename.KeyDownHandler(Sender: TObject; var Key: Word;
+  Shift: TShiftState);
+begin
+  case Key of
+    VK_F2:
+      begin
+        cbPresets.SetFocus;
+      end;
+    VK_ESCAPE:
+      begin
+        Close;
+      end;
+    {VK_RETURN, VK_SELECT:
+      begin
+      end;}
+  end;
+end;
+
 procedure TfrmMultiRename.LoadNamesFromFile(const AFileName: String);
 var
   AFileList: TStringListEx;
@@ -478,9 +494,9 @@ begin
     end
     else begin
       FNames.Assign(AFileList);
-      gbMaska.Enabled:= False;
+      {gbMaska.Enabled:= False;
       gbPresets.Enabled:= False;
-      gbCounter.Enabled:= False;
+      gbCounter.Enabled:= False;}
       StringGridTopLeftChanged(StringGrid);
     end;
   except
@@ -524,6 +540,11 @@ begin
   dmComData.OpenDialog.Filter:= AllFilesMask;
   if dmComData.OpenDialog.Execute then
     LoadNamesFromFile(dmComData.OpenDialog.FileName);
+end;
+
+procedure TfrmMultiRename.OnSelect(Sender: TObject);
+begin
+  btnLoadPresetClick(Sender);
 end;
 
 procedure TfrmMultiRename.StringGridKeyDown(Sender: TObject; var Key: Word;
@@ -742,9 +763,9 @@ begin
   cbPresets.Text:='';
   FLastPreset:='';
   FNames.Clear;
-  gbMaska.Enabled:= True;
+  {gbMaska.Enabled:= True;
   gbPresets.Enabled:= True;
-  gbCounter.Enabled:= True;
+  gbCounter.Enabled:= True;}
   StringGridTopLeftChanged(StringGrid);
 end;
 
