@@ -3048,8 +3048,10 @@ msgid "*"
 msgstr "*"
 
 #: tfrmmain.btnleftdirectoryhotlist.hint
+#, fuzzy
+#| msgid "Directory Hotlist"
 msgctxt "tfrmmain.btnleftdirectoryhotlist.hint"
-msgid "Directory Hotlist"
+msgid "&Directory Hotlist"
 msgstr "Бързодостъпни папки"
 
 #: tfrmmain.btnleftequalright.caption
@@ -3865,7 +3867,9 @@ msgid "Mask"
 msgstr "Имена"
 
 #: tfrmmultirename.gbpresets.caption
-msgid "Presets"
+#, fuzzy
+#| msgid "Presets"
+msgid "&Q Presets"
 msgstr "Предустановки"
 
 #: tfrmmultirename.lbext.caption
@@ -5108,7 +5112,9 @@ msgid "Name, a-z"
 msgstr "Име, я-а"
 
 #: tfrmoptionsdirectoryhotlist.gbdirectoryhotlist.caption
-msgid "Directory Hotlist (reorder by drag && drop)"
+#, fuzzy
+#| msgid "Directory Hotlist (reorder by drag && drop)"
+msgid "&Directory Hotlist (reorder by drag && drop)"
 msgstr "Любими папки (пренареждат се чрез завлачване)"
 
 #: tfrmoptionsdirectoryhotlist.gbhotlistotheroptions.caption
@@ -5117,18 +5123,24 @@ msgid "Other options"
 msgstr "Други възможности"
 
 #: tfrmoptionsdirectoryhotlist.lbledithotdirname.editlabel.caption
+#, fuzzy
+#| msgid "Name:"
 msgctxt "tfrmoptionsdirectoryhotlist.lbledithotdirname.editlabel.caption"
-msgid "Name:"
+msgid "N&ame:"
 msgstr "Име"
 
 #: tfrmoptionsdirectoryhotlist.lbledithotdirpath.editlabel.caption
+#, fuzzy
+#| msgid "Path:"
 msgctxt "tfrmoptionsdirectoryhotlist.lbledithotdirpath.editlabel.caption"
-msgid "Path:"
+msgid "&Path:"
 msgstr "Път:"
 
 #: tfrmoptionsdirectoryhotlist.lbledithotdirtarget.editlabel.caption
+#, fuzzy
+#| msgid "Target:"
 msgctxt "tfrmoptionsdirectoryhotlist.lbledithotdirtarget.editlabel.caption"
-msgid "Target:"
+msgid "&Target:"
 msgstr "Цел"
 
 #: tfrmoptionsdirectoryhotlist.miactiveframedirectory.caption
@@ -8895,8 +8907,10 @@ msgid "SUID"
 msgstr ""
 
 #: tfrmsetfileproperties.chkarchive.caption
+#, fuzzy
+#| msgid "Archive"
 msgctxt "TFRMSETFILEPROPERTIES.CHKARCHIVE.CAPTION"
-msgid "Archive"
+msgid "&Archive"
 msgstr "Сбивка"
 
 #: tfrmsetfileproperties.chkcreationtime.caption
@@ -8905,8 +8919,10 @@ msgid "Created:"
 msgstr "Саздаден:"
 
 #: tfrmsetfileproperties.chkhidden.caption
+#, fuzzy
+#| msgid "Hidden"
 msgctxt "TFRMSETFILEPROPERTIES.CHKHIDDEN.CAPTION"
-msgid "Hidden"
+msgid "&Hidden"
 msgstr "Скрит"
 
 #: tfrmsetfileproperties.chklastaccesstime.caption
@@ -8918,8 +8934,10 @@ msgid "Modified:"
 msgstr "Променен:"
 
 #: tfrmsetfileproperties.chkreadonly.caption
+#, fuzzy
+#| msgid "Read only"
 msgctxt "TFRMSETFILEPROPERTIES.CHKREADONLY.CAPTION"
-msgid "Read only"
+msgid "&Read only"
 msgstr "Само за четен"
 
 #: tfrmsetfileproperties.chkrecursive.caption
@@ -8929,8 +8947,10 @@ msgid "Including subfolders"
 msgstr "Вложено"
 
 #: tfrmsetfileproperties.chksystem.caption
+#, fuzzy
+#| msgid "System"
 msgctxt "TFRMSETFILEPROPERTIES.CHKSYSTEM.CAPTION"
-msgid "System"
+msgid "&System"
 msgstr "Системен"
 
 #: tfrmsetfileproperties.gbtimesamp.caption

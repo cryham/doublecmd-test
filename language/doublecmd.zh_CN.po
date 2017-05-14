@@ -3010,9 +3010,9 @@ msgstr "*"
 
 #: tfrmmain.btnleftdirectoryhotlist.hint
 #, fuzzy
-#| msgid "Directory hotlist"
+#| msgid "Directory Hotlist"
 msgctxt "tfrmmain.btnleftdirectoryhotlist.hint"
-msgid "Directory Hotlist"
+msgid "&Directory Hotlist"
 msgstr "常用目录列表"
 
 #: tfrmmain.btnleftequalright.caption
@@ -3834,7 +3834,7 @@ msgid "Mask"
 msgstr "掩码"
 
 #: tfrmmultirename.gbpresets.caption
-msgid "Presets"
+msgid "&Q Presets"
 msgstr ""
 
 #: tfrmmultirename.lbext.caption
@@ -5071,7 +5071,7 @@ msgid "Name, a-z"
 msgstr ""
 
 #: tfrmoptionsdirectoryhotlist.gbdirectoryhotlist.caption
-msgid "Directory Hotlist (reorder by drag && drop)"
+msgid "&Directory Hotlist (reorder by drag && drop)"
 msgstr ""
 
 #: tfrmoptionsdirectoryhotlist.gbhotlistotheroptions.caption
@@ -5080,18 +5080,22 @@ msgid "Other options"
 msgstr ""
 
 #: tfrmoptionsdirectoryhotlist.lbledithotdirname.editlabel.caption
+#, fuzzy
+#| msgid "Name:"
 msgctxt "tfrmoptionsdirectoryhotlist.lbledithotdirname.editlabel.caption"
-msgid "Name:"
+msgid "N&ame:"
 msgstr "名称:"
 
 #: tfrmoptionsdirectoryhotlist.lbledithotdirpath.editlabel.caption
+#, fuzzy
+#| msgid "Path:"
 msgctxt "tfrmoptionsdirectoryhotlist.lbledithotdirpath.editlabel.caption"
-msgid "Path:"
+msgid "&Path:"
 msgstr "路径:"
 
 #: tfrmoptionsdirectoryhotlist.lbledithotdirtarget.editlabel.caption
 msgctxt "tfrmoptionsdirectoryhotlist.lbledithotdirtarget.editlabel.caption"
-msgid "Target:"
+msgid "&Target:"
 msgstr ""
 
 #: tfrmoptionsdirectoryhotlist.miactiveframedirectory.caption
@@ -8811,7 +8815,7 @@ msgstr "SUID"
 
 #: tfrmsetfileproperties.chkarchive.caption
 msgctxt "TFRMSETFILEPROPERTIES.CHKARCHIVE.CAPTION"
-msgid "Archive"
+msgid "&Archive"
 msgstr ""
 
 #: tfrmsetfileproperties.chkcreationtime.caption
@@ -8821,7 +8825,7 @@ msgstr "创建日期:"
 
 #: tfrmsetfileproperties.chkhidden.caption
 msgctxt "TFRMSETFILEPROPERTIES.CHKHIDDEN.CAPTION"
-msgid "Hidden"
+msgid "&Hidden"
 msgstr ""
 
 #: tfrmsetfileproperties.chklastaccesstime.caption
@@ -8834,7 +8838,7 @@ msgstr ""
 
 #: tfrmsetfileproperties.chkreadonly.caption
 msgctxt "TFRMSETFILEPROPERTIES.CHKREADONLY.CAPTION"
-msgid "Read only"
+msgid "&Read only"
 msgstr ""
 
 #: tfrmsetfileproperties.chkrecursive.caption
@@ -8843,7 +8847,7 @@ msgstr ""
 
 #: tfrmsetfileproperties.chksystem.caption
 msgctxt "TFRMSETFILEPROPERTIES.CHKSYSTEM.CAPTION"
-msgid "System"
+msgid "&System"
 msgstr ""
 
 #: tfrmsetfileproperties.gbtimesamp.caption

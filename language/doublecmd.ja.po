@@ -2794,8 +2794,10 @@ msgid "*"
 msgstr "*"
 
 #: tfrmmain.btnleftdirectoryhotlist.hint
+#, fuzzy
+#| msgid "Directory Hotlist"
 msgctxt "TFRMMAIN.BTNLEFTDIRECTORYHOTLIST.HINT"
-msgid "Directory Hotlist"
+msgid "&Directory Hotlist"
 msgstr "ディレクトリ・ホットリスト"
 
 #: tfrmmain.btnleftequalright.caption
@@ -3582,7 +3584,9 @@ msgid "Mask"
 msgstr "マスク"
 
 #: tfrmmultirename.gbpresets.caption
-msgid "Presets"
+#, fuzzy
+#| msgid "Presets"
+msgid "&Q Presets"
 msgstr "プリセット"
 
 #: tfrmmultirename.lbext.caption
@@ -4671,7 +4675,9 @@ msgid "Name, a-z"
 msgstr "名前、a ~ z"
 
 #: tfrmoptionsdirectoryhotlist.gbdirectoryhotlist.caption
-msgid "Directory Hotlist (reorder by drag && drop)"
+#, fuzzy
+#| msgid "Directory Hotlist (reorder by drag && drop)"
+msgid "&Directory Hotlist (reorder by drag && drop)"
 msgstr "「ディレクトリ・ホットリスト」（ドラッグ&ドロップで並べ替え）"
 
 #: tfrmoptionsdirectoryhotlist.gbhotlistotheroptions.caption
@@ -4680,18 +4686,24 @@ msgid "Other options"
 msgstr "その他のオプション"
 
 #: tfrmoptionsdirectoryhotlist.lbledithotdirname.editlabel.caption
+#, fuzzy
+#| msgid "Name:"
 msgctxt "TFRMOPTIONSDIRECTORYHOTLIST.LBLEDITHOTDIRNAME.EDITLABEL.CAPTION"
-msgid "Name:"
+msgid "N&ame:"
 msgstr "名前："
 
 #: tfrmoptionsdirectoryhotlist.lbledithotdirpath.editlabel.caption
+#, fuzzy
+#| msgid "Path:"
 msgctxt "TFRMOPTIONSDIRECTORYHOTLIST.LBLEDITHOTDIRPATH.EDITLABEL.CAPTION"
-msgid "Path:"
+msgid "&Path:"
 msgstr "パス："
 
 #: tfrmoptionsdirectoryhotlist.lbledithotdirtarget.editlabel.caption
+#, fuzzy
+#| msgid "Target:"
 msgctxt "TFRMOPTIONSDIRECTORYHOTLIST.LBLEDITHOTDIRTARGET.EDITLABEL.CAPTION"
-msgid "Target:"
+msgid "&Target:"
 msgstr "ターゲット："
 
 #: tfrmoptionsdirectoryhotlist.miactiveframedirectory.caption
@@ -8123,8 +8135,10 @@ msgid "SUID"
 msgstr "SUID"
 
 #: tfrmsetfileproperties.chkarchive.caption
+#, fuzzy
+#| msgid "Archive"
 msgctxt "TFRMSETFILEPROPERTIES.CHKARCHIVE.CAPTION"
-msgid "Archive"
+msgid "&Archive"
 msgstr "アーカイブ"
 
 #: tfrmsetfileproperties.chkcreationtime.caption
@@ -8133,8 +8147,10 @@ msgid "Created:"
 msgstr "作成済み："
 
 #: tfrmsetfileproperties.chkhidden.caption
+#, fuzzy
+#| msgid "Hidden"
 msgctxt "TFRMSETFILEPROPERTIES.CHKHIDDEN.CAPTION"
-msgid "Hidden"
+msgid "&Hidden"
 msgstr "非表示"
 
 #: tfrmsetfileproperties.chklastaccesstime.caption
@@ -8146,8 +8162,10 @@ msgid "Modified:"
 msgstr "修正済み："
 
 #: tfrmsetfileproperties.chkreadonly.caption
+#, fuzzy
+#| msgid "Read only"
 msgctxt "TFRMSETFILEPROPERTIES.CHKREADONLY.CAPTION"
-msgid "Read only"
+msgid "&Read only"
 msgstr "読み取り専用"
 
 #: tfrmsetfileproperties.chkrecursive.caption
@@ -8155,8 +8173,10 @@ msgid "Including subfolders"
 msgstr "サブディレクトリを含めて"
 
 #: tfrmsetfileproperties.chksystem.caption
+#, fuzzy
+#| msgid "System"
 msgctxt "TFRMSETFILEPROPERTIES.CHKSYSTEM.CAPTION"
-msgid "System"
+msgid "&System"
 msgstr "システム"
 
 #: tfrmsetfileproperties.gbtimesamp.caption

@@ -178,6 +178,7 @@ msgid "Choose attributes"
 msgstr "Vyberte atributy"
 
 #: tfrmattributesedit.cbarchive.caption
+msgctxt "tfrmattributesedit.cbarchive.caption"
 msgid "&Archive"
 msgstr "&Archív"
 
@@ -194,6 +195,7 @@ msgid "&Encrypted"
 msgstr "Š&ifrováno"
 
 #: tfrmattributesedit.cbhidden.caption
+msgctxt "tfrmattributesedit.cbhidden.caption"
 msgid "&Hidden"
 msgstr "&Skryté"
 
@@ -2735,8 +2737,10 @@ msgid "*"
 msgstr "*"
 
 #: tfrmmain.btnleftdirectoryhotlist.hint
+#, fuzzy
+#| msgid "Directory Hotlist"
 msgctxt "TFRMMAIN.BTNLEFTDIRECTORYHOTLIST.HINT"
-msgid "Directory Hotlist"
+msgid "&Directory Hotlist"
 msgstr "Rychlé adresáře"
 
 #: tfrmmain.btnleftequalright.caption
@@ -3512,7 +3516,9 @@ msgid "Mask"
 msgstr "Maska"
 
 #: tfrmmultirename.gbpresets.caption
-msgid "Presets"
+#, fuzzy
+#| msgid "Presets"
+msgid "&Q Presets"
 msgstr "Předvolby"
 
 #: tfrmmultirename.lbext.caption
@@ -4563,7 +4569,9 @@ msgid "Name, a-z"
 msgstr "Název, a-z"
 
 #: tfrmoptionsdirectoryhotlist.gbdirectoryhotlist.caption
-msgid "Directory Hotlist (reorder by drag && drop)"
+#, fuzzy
+#| msgid "Directory Hotlist (reorder by drag && drop)"
+msgid "&Directory Hotlist (reorder by drag && drop)"
 msgstr "Rychlé adresáře (lze přeskupit přetáhnutím)"
 
 #: tfrmoptionsdirectoryhotlist.gbhotlistotheroptions.caption
@@ -4572,17 +4580,23 @@ msgid "Other options"
 msgstr "Další možnosti"
 
 #: tfrmoptionsdirectoryhotlist.lbledithotdirname.editlabel.caption
+#, fuzzy
+#| msgid "Name:"
 msgctxt "TFRMOPTIONSDIRECTORYHOTLIST.LBLEDITHOTDIRNAME.EDITLABEL.CAPTION"
-msgid "Name:"
+msgid "N&ame:"
 msgstr "Název:"
 
 #: tfrmoptionsdirectoryhotlist.lbledithotdirpath.editlabel.caption
+#, fuzzy
+#| msgid "Path:"
 msgctxt "TFRMOPTIONSDIRECTORYHOTLIST.LBLEDITHOTDIRPATH.EDITLABEL.CAPTION"
-msgid "Path:"
+msgid "&Path:"
 msgstr "Cesta:"
 
 #: tfrmoptionsdirectoryhotlist.lbledithotdirtarget.editlabel.caption
-msgid "Target:"
+#, fuzzy
+#| msgid "Target:"
+msgid "&Target:"
 msgstr "Cíl:"
 
 #: tfrmoptionsdirectoryhotlist.miactiveframedirectory.caption
@@ -7886,7 +7900,10 @@ msgid "SUID"
 msgstr "SUID"
 
 #: tfrmsetfileproperties.chkarchive.caption
-msgid "Archive"
+#, fuzzy
+#| msgid "Archive"
+msgctxt "tfrmsetfileproperties.chkarchive.caption"
+msgid "&Archive"
 msgstr "Archív"
 
 #: tfrmsetfileproperties.chkcreationtime.caption
@@ -7894,7 +7911,10 @@ msgid "Created:"
 msgstr "Vytvořeno:"
 
 #: tfrmsetfileproperties.chkhidden.caption
-msgid "Hidden"
+#, fuzzy
+#| msgid "Hidden"
+msgctxt "tfrmsetfileproperties.chkhidden.caption"
+msgid "&Hidden"
 msgstr "Skryté"
 
 #: tfrmsetfileproperties.chklastaccesstime.caption
@@ -7906,7 +7926,9 @@ msgid "Modified:"
 msgstr "Změněno:"
 
 #: tfrmsetfileproperties.chkreadonly.caption
-msgid "Read only"
+#, fuzzy
+#| msgid "Read only"
+msgid "&Read only"
 msgstr "Pouze pro čtení"
 
 #: tfrmsetfileproperties.chkrecursive.caption
@@ -7914,7 +7936,9 @@ msgid "Including subfolders"
 msgstr "Včetně podsložek"
 
 #: tfrmsetfileproperties.chksystem.caption
-msgid "System"
+#, fuzzy
+#| msgid "System"
+msgid "&System"
 msgstr "Systém"
 
 #: tfrmsetfileproperties.gbtimesamp.caption

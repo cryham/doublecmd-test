@@ -2845,9 +2845,9 @@ msgstr "*.*"
 
 #: tfrmmain.btnleftdirectoryhotlist.hint
 #, fuzzy
-#| msgid "Directory hotlist"
+#| msgid "Directory Hotlist"
 msgctxt "TFRMMAIN.BTNLEFTDIRECTORYHOTLIST.HINT"
-msgid "Directory Hotlist"
+msgid "&Directory Hotlist"
 msgstr "Favoritmapper"
 
 #: tfrmmain.btnleftequalright.caption
@@ -3656,7 +3656,9 @@ msgid "Mask"
 msgstr "Omdøb maske"
 
 #: tfrmmultirename.gbpresets.caption
-msgid "Presets"
+#, fuzzy
+#| msgid "Presets"
+msgid "&Q Presets"
 msgstr "Forvalg"
 
 #: tfrmmultirename.lbext.caption
@@ -4800,7 +4802,9 @@ msgid "Name, a-z"
 msgstr "Navn, a-å"
 
 #: tfrmoptionsdirectoryhotlist.gbdirectoryhotlist.caption
-msgid "Directory Hotlist (reorder by drag && drop)"
+#, fuzzy
+#| msgid "Directory Hotlist (reorder by drag && drop)"
+msgid "&Directory Hotlist (reorder by drag && drop)"
 msgstr "Favoritmappe (omsorteret med træk && slip)"
 
 #: tfrmoptionsdirectoryhotlist.gbhotlistotheroptions.caption
@@ -4809,18 +4813,24 @@ msgid "Other options"
 msgstr "Andre indstillinger"
 
 #: tfrmoptionsdirectoryhotlist.lbledithotdirname.editlabel.caption
+#, fuzzy
+#| msgid "Name:"
 msgctxt "TFRMOPTIONSDIRECTORYHOTLIST.LBLEDITHOTDIRNAME.EDITLABEL.CAPTION"
-msgid "Name:"
+msgid "N&ame:"
 msgstr "Navn:"
 
 #: tfrmoptionsdirectoryhotlist.lbledithotdirpath.editlabel.caption
+#, fuzzy
+#| msgid "Path:"
 msgctxt "TFRMOPTIONSDIRECTORYHOTLIST.LBLEDITHOTDIRPATH.EDITLABEL.CAPTION"
-msgid "Path:"
+msgid "&Path:"
 msgstr "Sti:"
 
 #: tfrmoptionsdirectoryhotlist.lbledithotdirtarget.editlabel.caption
+#, fuzzy
+#| msgid "Target:"
 msgctxt "TFRMOPTIONSDIRECTORYHOTLIST.LBLEDITHOTDIRTARGET.EDITLABEL.CAPTION"
-msgid "Target:"
+msgid "&Target:"
 msgstr "Destination:"
 
 #: tfrmoptionsdirectoryhotlist.miactiveframedirectory.caption
@@ -8399,8 +8409,10 @@ msgstr ""
 "(Set user id)\n"
 
 #: tfrmsetfileproperties.chkarchive.caption
+#, fuzzy
+#| msgid "Archive"
 msgctxt "TFRMSETFILEPROPERTIES.CHKARCHIVE.CAPTION"
-msgid "Archive"
+msgid "&Archive"
 msgstr "&a  Arkiv"
 
 #: tfrmsetfileproperties.chkcreationtime.caption
@@ -8409,8 +8421,10 @@ msgid "Created:"
 msgstr "Oprettet:"
 
 #: tfrmsetfileproperties.chkhidden.caption
+#, fuzzy
+#| msgid "Hidden"
 msgctxt "TFRMSETFILEPROPERTIES.CHKHIDDEN.CAPTION"
-msgid "Hidden"
+msgid "&Hidden"
 msgstr "&h  Skjult"
 
 #: tfrmsetfileproperties.chklastaccesstime.caption
@@ -8422,8 +8436,10 @@ msgid "Modified:"
 msgstr "Ændret:"
 
 #: tfrmsetfileproperties.chkreadonly.caption
+#, fuzzy
+#| msgid "Read only"
 msgctxt "TFRMSETFILEPROPERTIES.CHKREADONLY.CAPTION"
-msgid "Read only"
+msgid "&Read only"
 msgstr "&r  Skrivebeskyttet"
 
 #: tfrmsetfileproperties.chkrecursive.caption
@@ -8431,8 +8447,10 @@ msgid "Including subfolders"
 msgstr "Medtag filer i &undermapper"
 
 #: tfrmsetfileproperties.chksystem.caption
+#, fuzzy
+#| msgid "System"
 msgctxt "TFRMSETFILEPROPERTIES.CHKSYSTEM.CAPTION"
-msgid "System"
+msgid "&System"
 msgstr "&s  System"
 
 #: tfrmsetfileproperties.gbtimesamp.caption

@@ -2826,9 +2826,9 @@ msgstr "*"
 
 #: tfrmmain.btnleftdirectoryhotlist.hint
 #, fuzzy
-#| msgid "Directory hotlist"
+#| msgid "Directory Hotlist"
 msgctxt "TFRMMAIN.BTNLEFTDIRECTORYHOTLIST.HINT"
-msgid "Directory Hotlist"
+msgid "&Directory Hotlist"
 msgstr "Cartelle preferite"
 
 #: tfrmmain.btnleftequalright.caption
@@ -3632,7 +3632,9 @@ msgid "Mask"
 msgstr "Filtro"
 
 #: tfrmmultirename.gbpresets.caption
-msgid "Presets"
+#, fuzzy
+#| msgid "Presets"
+msgid "&Q Presets"
 msgstr "Preset"
 
 #: tfrmmultirename.lbext.caption
@@ -4776,7 +4778,7 @@ msgid "Name, a-z"
 msgstr ""
 
 #: tfrmoptionsdirectoryhotlist.gbdirectoryhotlist.caption
-msgid "Directory Hotlist (reorder by drag && drop)"
+msgid "&Directory Hotlist (reorder by drag && drop)"
 msgstr ""
 
 #: tfrmoptionsdirectoryhotlist.gbhotlistotheroptions.caption
@@ -4785,18 +4787,22 @@ msgid "Other options"
 msgstr ""
 
 #: tfrmoptionsdirectoryhotlist.lbledithotdirname.editlabel.caption
+#, fuzzy
+#| msgid "Name:"
 msgctxt "tfrmoptionsdirectoryhotlist.lbledithotdirname.editlabel.caption"
-msgid "Name:"
+msgid "N&ame:"
 msgstr "Nome:"
 
 #: tfrmoptionsdirectoryhotlist.lbledithotdirpath.editlabel.caption
+#, fuzzy
+#| msgid "Path:"
 msgctxt "tfrmoptionsdirectoryhotlist.lbledithotdirpath.editlabel.caption"
-msgid "Path:"
+msgid "&Path:"
 msgstr "Percorso:"
 
 #: tfrmoptionsdirectoryhotlist.lbledithotdirtarget.editlabel.caption
 msgctxt "tfrmoptionsdirectoryhotlist.lbledithotdirtarget.editlabel.caption"
-msgid "Target:"
+msgid "&Target:"
 msgstr ""
 
 #: tfrmoptionsdirectoryhotlist.miactiveframedirectory.caption
@@ -8287,8 +8293,10 @@ msgid "SUID"
 msgstr "SUID"
 
 #: tfrmsetfileproperties.chkarchive.caption
+#, fuzzy
+#| msgid "Archive"
 msgctxt "TFRMSETFILEPROPERTIES.CHKARCHIVE.CAPTION"
-msgid "Archive"
+msgid "&Archive"
 msgstr "Archivio"
 
 #: tfrmsetfileproperties.chkcreationtime.caption
@@ -8297,8 +8305,10 @@ msgid "Created:"
 msgstr "Creato:"
 
 #: tfrmsetfileproperties.chkhidden.caption
+#, fuzzy
+#| msgid "Hidden"
 msgctxt "TFRMSETFILEPROPERTIES.CHKHIDDEN.CAPTION"
-msgid "Hidden"
+msgid "&Hidden"
 msgstr "Nascosto"
 
 #: tfrmsetfileproperties.chklastaccesstime.caption
@@ -8310,8 +8320,10 @@ msgid "Modified:"
 msgstr "Modificato:"
 
 #: tfrmsetfileproperties.chkreadonly.caption
+#, fuzzy
+#| msgid "Read only"
 msgctxt "TFRMSETFILEPROPERTIES.CHKREADONLY.CAPTION"
-msgid "Read only"
+msgid "&Read only"
 msgstr "Sola lettura"
 
 #: tfrmsetfileproperties.chkrecursive.caption
@@ -8319,8 +8331,10 @@ msgid "Including subfolders"
 msgstr "Inclusione sottocartelle"
 
 #: tfrmsetfileproperties.chksystem.caption
+#, fuzzy
+#| msgid "System"
 msgctxt "TFRMSETFILEPROPERTIES.CHKSYSTEM.CAPTION"
-msgid "System"
+msgid "&System"
 msgstr "Sistema"
 
 #: tfrmsetfileproperties.gbtimesamp.caption

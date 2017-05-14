@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: Double Commander 0.8.0 alpha\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2008-01-17 23:08+0300\n"
-"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"PO-Revision-Date: 2017-04-08 18:28+0100\n"
 "Last-Translator: Full Name <email@address>\n"
 "Language-Team: Language <email@address>\n"
 "MIME-Version: 1.0\n"
@@ -175,6 +175,7 @@ msgid "Choose attributes"
 msgstr ""
 
 #: tfrmattributesedit.cbarchive.caption
+msgctxt "tfrmattributesedit.cbarchive.caption"
 msgid "&Archive"
 msgstr ""
 
@@ -191,6 +192,7 @@ msgid "&Encrypted"
 msgstr ""
 
 #: tfrmattributesedit.cbhidden.caption
+msgctxt "tfrmattributesedit.cbhidden.caption"
 msgid "&Hidden"
 msgstr ""
 
@@ -2004,7 +2006,7 @@ msgstr ""
 
 #: tfrmmain.actconfigdirhotlist.caption
 msgctxt "tfrmmain.actconfigdirhotlist.caption"
-msgid "Configuration of Directory Hotlist"
+msgid "Configuration of Directory ++ Hotlist ++"
 msgstr ""
 
 #: tfrmmain.actconfigfavoritetabs.caption
@@ -2731,7 +2733,7 @@ msgstr ""
 
 #: tfrmmain.btnleftdirectoryhotlist.hint
 msgctxt "tfrmmain.btnleftdirectoryhotlist.hint"
-msgid "Directory Hotlist"
+msgid "&Directory Hotlist"
 msgstr ""
 
 #: tfrmmain.btnleftequalright.caption
@@ -3507,7 +3509,7 @@ msgid "Mask"
 msgstr ""
 
 #: tfrmmultirename.gbpresets.caption
-msgid "Presets"
+msgid "&Q Presets"
 msgstr ""
 
 #: tfrmmultirename.lbext.caption
@@ -4558,7 +4560,7 @@ msgid "Name, a-z"
 msgstr ""
 
 #: tfrmoptionsdirectoryhotlist.gbdirectoryhotlist.caption
-msgid "Directory Hotlist (reorder by drag && drop)"
+msgid "&Directory Hotlist (reorder by drag && drop)"
 msgstr ""
 
 #: tfrmoptionsdirectoryhotlist.gbhotlistotheroptions.caption
@@ -4568,16 +4570,16 @@ msgstr ""
 
 #: tfrmoptionsdirectoryhotlist.lbledithotdirname.editlabel.caption
 msgctxt "TFRMOPTIONSDIRECTORYHOTLIST.LBLEDITHOTDIRNAME.EDITLABEL.CAPTION"
-msgid "Name:"
+msgid "N&ame:"
 msgstr ""
 
 #: tfrmoptionsdirectoryhotlist.lbledithotdirpath.editlabel.caption
 msgctxt "TFRMOPTIONSDIRECTORYHOTLIST.LBLEDITHOTDIRPATH.EDITLABEL.CAPTION"
-msgid "Path:"
+msgid "&Path:"
 msgstr ""
 
 #: tfrmoptionsdirectoryhotlist.lbledithotdirtarget.editlabel.caption
-msgid "Target:"
+msgid "&Target:"
 msgstr ""
 
 #: tfrmoptionsdirectoryhotlist.miactiveframedirectory.caption
@@ -7878,6 +7880,7 @@ msgid "SUID"
 msgstr ""
 
 #: tfrmsetfileproperties.chkarchive.caption
+msgctxt "tfrmsetfileproperties.chkarchive.caption"
 msgid "&Archive"
 msgstr ""
 
@@ -7886,6 +7889,7 @@ msgid "Created:"
 msgstr ""
 
 #: tfrmsetfileproperties.chkhidden.caption
+msgctxt "tfrmsetfileproperties.chkhidden.caption"
 msgid "&Hidden"
 msgstr ""
 
@@ -10062,7 +10066,7 @@ msgstr ""
 
 #: ulng.rsmsghotdirconfighotlist
 msgctxt "ulng.rsmsghotdirconfighotlist"
-msgid "Configuration of Directory Hotlist"
+msgid "Configuration of Directory ++ Hotlist ++"
 msgstr ""
 
 #: ulng.rsmsghotdirdeleteallentries
