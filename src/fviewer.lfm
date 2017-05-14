@@ -267,7 +267,7 @@ object frmViewer: TfrmViewer
   OnShow = FormShow
   SessionProperties = 'Height;Width;Left;Top;WindowState'
   ShowInTaskBar = stAlways
-  LCLVersion = '1.6.2.0'
+  LCLVersion = '1.6.4.0'
   object pnlFolder: TPanel
     Left = 179
     Height = 433
@@ -2860,6 +2860,10 @@ object frmViewer: TfrmViewer
     object actFindPrev: TAction
       Category = 'Edit'
       Caption = 'Find previous'
+      OnExecute = actExecute
+    end
+    object actChangeEncoding: TAction
+      Caption = 'Change encoding'
       OnExecute = actExecute
     end
   end

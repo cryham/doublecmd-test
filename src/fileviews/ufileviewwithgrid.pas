@@ -449,7 +449,7 @@ begin
   DoubleBuffered := True;
   Align := alClient;
   MouseWheelOption:= mwGrid;
-  Options := [goTabs, goThumbTracking, goSmoothScroll];
+  Options := [goTabs, goThumbTracking];
   TabStop := False;
 
   UpdateView;
@@ -643,6 +643,7 @@ begin
     for I := 0 to FAllDisplayFiles.Count - 1 do
       MakeColumnsStrings(FAllDisplayFiles[I]);
   end;
+  TabHeader.UpdateSorting(Sorting);
 end;
 
 destructor TFileViewWithGrid.Destroy;

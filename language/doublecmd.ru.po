@@ -2599,7 +2599,7 @@ msgstr "Изменить атри&буты"
 
 #: tfrmmain.actsettaboptiondirsinnewtab.caption
 msgid "Locked with Directories Opened in New &Tabs"
-msgstr "О&ткрывать каталоги в новой вкладке"
+msgstr "Заблокировать и о&ткрывать каталоги в новой вкладке"
 
 #: tfrmmain.actsettaboptionnormal.caption
 msgid "&Normal"
@@ -4048,6 +4048,10 @@ msgctxt "TFRMOPTIONSCOLUMNSVIEW.CBCUTTEXTTOCOLWIDTH.CAPTION"
 msgid "Cut &text to column width"
 msgstr "Обр&езать текст по ширине колонки"
 
+#: tfrmoptionscolumnsview.cbextendcellwidth.caption
+msgid "&Extend cell width if text is not fitting into column"
+msgstr ""
+
 #: tfrmoptionscolumnsview.cbgridhorzline.caption
 msgctxt "TFRMOPTIONSCOLUMNSVIEW.CBGRIDHORZLINE.CAPTION"
 msgid "&Horizontal lines"
@@ -4111,6 +4115,11 @@ msgctxt "TFRMOPTIONSCONFIGURATION.CHKSEARCHREPLACEHISTORY.CAPTION"
 msgid "Searc&h/Replace history"
 msgstr "Истори&ю поиска/замены"
 
+#: tfrmoptionsconfiguration.gbdirectories.caption
+msgctxt "tfrmoptionsconfiguration.gbdirectories.caption"
+msgid "Directories"
+msgstr "Каталоги"
+
 #: tfrmoptionsconfiguration.gblocconfigfiles.caption
 msgctxt "TFRMOPTIONSCONFIGURATION.GBLOCCONFIGFILES.CAPTION"
 msgid "Location of configuration files"
@@ -4129,6 +4138,14 @@ msgstr "Сортировка дерева конфигурации (слева)"
 msgctxt "TFRMOPTIONSCONFIGURATION.LBLCMDLINECONFIGDIR.CAPTION"
 msgid "Set on command line"
 msgstr "Задано через командную строку"
+
+#: tfrmoptionsconfiguration.lbliconthemes.caption
+msgid "Icon themes:"
+msgstr "Темы значков:"
+
+#: tfrmoptionsconfiguration.lblthumbcache.caption
+msgid "Thumbnails cache:"
+msgstr "Кэш эскизов:"
 
 #: tfrmoptionsconfiguration.rbprogramdir.caption
 msgctxt "TFRMOPTIONSCONFIGURATION.RBPROGRAMDIR.CAPTION"
@@ -6357,18 +6374,18 @@ msgstr "Показывать овер&лейные значки (наприме�
 msgid "Disable special icons"
 msgstr "Отключить загрузку специальных иконок"
 
-#: tfrmoptionsicons.gbiconsinmenus.caption
-msgid "Icons in menus"
-msgstr "Значки в меню"
-
-#: tfrmoptionsicons.gbiconsonbuttons.caption
-msgid "Icons on buttons"
-msgstr "Значки на кнопках"
-
 #: tfrmoptionsicons.gbiconssize.caption
 msgctxt "TFRMOPTIONSICONS.GBICONSSIZE.CAPTION"
 msgid " Icon size "
 msgstr " Размер значков "
+
+#: tfrmoptionsicons.gbicontheme.caption
+msgid "Icon theme"
+msgstr "Тема значков"
+
+#: tfrmoptionsicons.gbshowicons.caption
+msgid "Show icons"
+msgstr "Показывать значки"
 
 #: tfrmoptionsicons.gbshowiconsmode.caption
 msgctxt "TFRMOPTIONSICONS.GBSHOWICONSMODE.CAPTION"
@@ -8760,6 +8777,10 @@ msgstr "О просмотрщике..."
 msgid "Displays the About message"
 msgstr "Показывает сообщение о..."
 
+#: tfrmviewer.actchangeencoding.caption
+msgid "Change encoding"
+msgstr "Сменить кодировку"
+
 #: tfrmviewer.actcopyfile.caption
 msgctxt "TFRMVIEWER.ACTCOPYFILE.CAPTION"
 msgid "Copy File"
@@ -11069,9 +11090,18 @@ msgstr "Стереть выбранный \"%s\"?"
 msgid "with"
 msgstr "с"
 
+#: ulng.rsmulrenautorename
+#| msgid "Do auto-rename to \"name (1).ext\", \"name (2).ext\" etc?"
+msgid "Do auto-rename to \"name (1).ext\", \"name (2).ext\" etc.?"
+msgstr "Переименовывать автоматически в \"name (1).ext\", \"name (2).ext\" и т.д.?"
+
 #: ulng.rsmulrenfilenamestylelist
 msgid "No change;UPPERCASE;lowercase;First char uppercase;First Char Of Every Word Uppercase;"
 msgstr "Без изменений;ПРОПИСНЫЕ;строчные;С прописной;Каждое Слово С Прописной;"
+
+#: ulng.rsmulrenwarningduplicate
+msgid "Warning, duplicate names!"
+msgstr "Внимание, одинаковые имена!"
 
 #: ulng.rsmulrenwronglinesnumber
 msgid "File contains wrong number of lines: %d, should be %d!"

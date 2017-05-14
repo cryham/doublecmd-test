@@ -3955,6 +3955,10 @@ msgstr "Pevná šířka sloupce"
 msgid "Cut &text to column width"
 msgstr "Oříznout &text na šířku sloupce"
 
+#: tfrmoptionscolumnsview.cbextendcellwidth.caption
+msgid "&Extend cell width if text is not fitting into column"
+msgstr ""
+
 #: tfrmoptionscolumnsview.cbgridhorzline.caption
 msgid "&Horizontal lines"
 msgstr "&Vodorovné čáry"
@@ -4009,6 +4013,12 @@ msgstr "Ul&ožit nastavení"
 msgid "Searc&h/Replace history"
 msgstr "Historie hle&dání/nahrazení"
 
+#: tfrmoptionsconfiguration.gbdirectories.caption
+#, fuzzy
+msgctxt "tfrmoptionsconfiguration.gbdirectories.caption"
+msgid "Directories"
+msgstr "Adresáře"
+
 #: tfrmoptionsconfiguration.gblocconfigfiles.caption
 msgid "Location of configuration files"
 msgstr "Umístění konfiguračních souborů"
@@ -4024,6 +4034,14 @@ msgstr "Řazení pořadí levého konfiguračního stromu"
 #: tfrmoptionsconfiguration.lblcmdlineconfigdir.caption
 msgid "Set on command line"
 msgstr "Nastavit na příkazové řádce"
+
+#: tfrmoptionsconfiguration.lbliconthemes.caption
+msgid "Icon themes:"
+msgstr ""
+
+#: tfrmoptionsconfiguration.lblthumbcache.caption
+msgid "Thumbnails cache:"
+msgstr ""
 
 #: tfrmoptionsconfiguration.rbprogramdir.caption
 msgid "P&rogram directory (portable version)"
@@ -6176,17 +6194,17 @@ msgstr "Zobrazit p&řekryvné i&kony, např. pro odkazy"
 msgid "Disable special icons"
 msgstr "Zakázat speciální ikony"
 
-#: tfrmoptionsicons.gbiconsinmenus.caption
-msgid "Icons in menus"
-msgstr "Ikony v nabídkách"
-
-#: tfrmoptionsicons.gbiconsonbuttons.caption
-msgid "Icons on buttons"
-msgstr "Ikony na tlačítkách"
-
 #: tfrmoptionsicons.gbiconssize.caption
 msgid " Icon size "
 msgstr " Velikost ikon "
+
+#: tfrmoptionsicons.gbicontheme.caption
+msgid "Icon theme"
+msgstr ""
+
+#: tfrmoptionsicons.gbshowicons.caption
+msgid "Show icons"
+msgstr ""
 
 #: tfrmoptionsicons.gbshowiconsmode.caption
 msgid " Show icons to the left of the filename "
@@ -8466,6 +8484,10 @@ msgstr "O prohlížeči..."
 #: tfrmviewer.actabout.hint
 msgid "Displays the About message"
 msgstr "Zobrazit zprávu o programu"
+
+#: tfrmviewer.actchangeencoding.caption
+msgid "Change encoding"
+msgstr ""
 
 #: tfrmviewer.actcopyfile.caption
 msgctxt "TFRMVIEWER.ACTCOPYFILE.CAPTION"
@@ -10754,9 +10776,17 @@ msgstr "Nevratně smazat \"%s\"?"
 msgid "with"
 msgstr "s"
 
+#: ulng.rsmulrenautorename
+msgid "Do auto-rename to \"name (1).ext\", \"name (2).ext\" etc.?"
+msgstr ""
+
 #: ulng.rsmulrenfilenamestylelist
 msgid "No change;UPPERCASE;lowercase;First char uppercase;First Char Of Every Word Uppercase;"
 msgstr "Neměnit;VELKÁ;malá;1. znak velkým;1. znak každého slova velkým;"
+
+#: ulng.rsmulrenwarningduplicate
+msgid "Warning, duplicate names!"
+msgstr ""
 
 #: ulng.rsmulrenwronglinesnumber
 msgid "File contains wrong number of lines: %d, should be %d!"

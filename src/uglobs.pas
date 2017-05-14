@@ -58,6 +58,8 @@ type
   TTabsPosition = (tbpos_top, tbpos_bottom);
   { Show icons mode }
   TShowIconsMode = (sim_none, sim_standart, sim_all, sim_all_and_exe);
+  { Custom icons mode }
+  TCustomIconsMode = set of (cimDrive, cimFolder, cimArchive);
   TScrollMode = (smLineByLineCursor, smLineByLine, smPageByPage);
   { Sorting directories mode }
   TSortFolderMode = (sfmSortNameShowFirst, sfmSortLikeFileShowFirst, sfmSortLikeFile);
@@ -122,7 +124,7 @@ type
 
 const
   { Default hotkey list version number }
-  hkVersion = 40;
+  hkVersion = 41;
   // 40 - In "Main" context, added the "Ctrl+Shift+F7" for "cm_AddNewSearch".
   //      In "Find Files" context, changed "cm_Start" that was "Enter" for "F9".
   //      In "Find Files" context, added "Alt+F7" as a valid alternative for "cm_PageStandard".
@@ -141,7 +143,8 @@ const
   // 7   - changed Viewer/SaveThumbnails to Thumbnails/Save
   // 8   - changed Behaviours/BriefViewFileExtAligned to FilesViews/BriefView/FileExtAligned
   // 9   - few new options regarding tabs
-  ConfigVersion = 9;
+  // 10  - changed Icons/CustomDriveIcons to Icons/CustomIcons
+  ConfigVersion = 10;
 
   TKeyTypingModifierToShift: array[TKeyTypingModifier] of TShiftState =
     ([], [ssAlt], [ssCtrl, ssAlt]);
@@ -282,6 +285,7 @@ var
   glsIgnoreList : TStringListEx;
   gOnlyOneAppInstance,
   gCutTextToColWidth : Boolean;
+  gExtendCellWidth : Boolean;
   gSpaceMovesDown: Boolean;
   gScrollMode: TScrollMode;
   gWheelScrollLines: Integer;
@@ -367,10 +371,11 @@ var
   gIconsExclude: Boolean;
   gIconsExcludeDirs: String;
   gPixelsPerInch: Integer;
-  gCustomDriveIcons : Boolean; // for use custom drive icons under windows
+  gCustomIcons : TCustomIconsMode; // for use custom icons under windows
   gIconsInMenus: Boolean;
   gIconsInMenusSize,
   gIconsInMenusSizeNew: Integer;
+  gIconTheme: String;
 
   { Keys page }
   gKeyTyping: array[TKeyTypingModifier] of TKeyTypingAction;
@@ -998,6 +1003,11 @@ begin
 
       AddIfNotExists(VK_A, [ssModifier], 'cm_SelectAll');
       AddIfNotExists(VK_C, [ssModifier], 'cm_CopyToClipboard');
+
+      AddIfNotExists(['A','','ANSI','',
+                      'S','','OEM','',
+                      'Z','','UTF-8','',
+                      'X','','UTF-16LE',''],'cm_ChangeEncoding');
     end;
 
 
@@ -1314,6 +1324,7 @@ begin
   gCustomColumnsChangeAllColumns := False;
   gDateTimeFormat := DefaultDateTimeFormat;
   gCutTextToColWidth := True;
+  gExtendCellWidth := False;
   gShowSystemFiles := False;
   // Under Mac OS X loading file list in separate thread are very very slow
   // so disable and hide this option under Mac OS X Carbon
@@ -1580,10 +1591,11 @@ begin
   gIconsExclude := False;
   gIconsExcludeDirs := EmptyStr;
   gPixelsPerInch := 96;
-  gCustomDriveIcons := False;
+  gCustomIcons := [];
   gIconsInMenus := False;
   gIconsInMenusSize := 16;
   gIconsInMenusSizeNew := gIconsInMenusSize;
+  gIconTheme := DC_THEME_NAME;
 
   { Ignore list page }
   gIgnoreListFileEnabled := False;
@@ -2148,6 +2160,7 @@ begin
       gAutoSizeColumn := GetValue(Node, 'AutoSizeColumn', gAutoSizeColumn);
       gDateTimeFormat := GetValidDateTimeFormat(GetValue(Node, 'DateTimeFormat', gDateTimeFormat), DefaultDateTimeFormat);
       gCutTextToColWidth := GetValue(Node, 'CutTextToColumnWidth', gCutTextToColWidth);
+      gExtendCellWidth := GetValue(Node, 'ExtendCellWidth', gExtendCellWidth);
       gShowSystemFiles := GetValue(Node, 'ShowSystemFiles', gShowSystemFiles);
       {$IFNDEF LCLCARBON}
       // Under Mac OS X loading file list in separate thread are very very slow
@@ -2492,6 +2505,7 @@ begin
     Node := Root.FindNode('Icons');
     if Assigned(Node) then
     begin
+      gIconTheme := GetValue(Node, 'Theme', gIconTheme);
       gShowIcons := TShowIconsMode(GetValue(Node, 'ShowMode', Integer(gShowIcons)));
       gIconOverlays := GetValue(Node, 'ShowOverlays', gIconOverlays);
       gIconsSize := GetValue(Node, 'Size', gIconsSize);
@@ -2499,7 +2513,13 @@ begin
       gIconsExclude := GetValue(Node, 'Exclude', gIconsExclude);
       gIconsExcludeDirs := GetValue(Node, 'ExcludeDirs', gIconsExcludeDirs);
       gPixelsPerInch := GetValue(Node, 'PixelsPerInch', gPixelsPerInch);
-      gCustomDriveIcons := GetValue(Node, 'CustomDriveIcons', gCustomDriveIcons);
+      if LoadedConfigVersion < 10 then
+      begin
+        if GetValue(Node, 'CustomDriveIcons', False) then
+          gCustomIcons += [cimDrive];
+        DeleteNode(Node, 'CustomDriveIcons');
+      end;
+      gCustomIcons := TCustomIconsMode(GetValue(Node, 'CustomIcons', Integer(gCustomIcons)));
       gIconsInMenus := GetAttr(Node, 'ShowInMenus/Enabled', gIconsInMenus);
       gIconsInMenusSize := GetValue(Node, 'ShowInMenus/Size', gIconsInMenusSize);
       Application.ShowButtonGlyphs := TApplicationShowGlyphs(GetValue(Node, 'ShowButtonGlyphs', Integer(Application.ShowButtonGlyphs)));
@@ -2753,6 +2773,7 @@ begin
     SetValue(Node, 'BriefViewFileExtAligned', gBriefViewFileExtAligned);
     SetValue(Node, 'DateTimeFormat', gDateTimeFormat);
     SetValue(Node, 'CutTextToColumnWidth', gCutTextToColWidth);
+    SetValue(Node, 'ExtendCellWidth', gExtendCellWidth);
     SetValue(Node, 'ShowSystemFiles', gShowSystemFiles);
     {$IFNDEF LCLCARBON}
     // Under Mac OS X loading file list in separate thread are very very slow
@@ -2990,13 +3011,14 @@ begin
 
     { Icons page }
     Node := FindNode(Root, 'Icons', True);
+    SetValue(Node, 'Theme', gIconTheme);
     SetValue(Node, 'ShowMode', Integer(gShowIconsNew));
     SetValue(Node, 'ShowOverlays', gIconOverlays);
     SetValue(Node, 'Size', gIconsSizeNew);
     SetValue(Node, 'DiskSize', gDiskIconsSize);
     SetValue(Node, 'Exclude', gIconsExclude);
     SetValue(Node, 'ExcludeDirs', gIconsExcludeDirs);
-    SetValue(Node, 'CustomDriveIcons', gCustomDriveIcons);
+    SetValue(Node, 'CustomIcons', Integer(gCustomIcons));
     SetValue(Node, 'PixelsPerInch', Screen.PixelsPerInch);
     SetAttr(Node, 'ShowInMenus/Enabled', gIconsInMenus);
     SetValue(Node, 'ShowInMenus/Size', gIconsInMenusSizeNew);

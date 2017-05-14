@@ -1355,6 +1355,24 @@ Index: AbTarTyp.pas
  function TAbTarItem.GetLinkName: string;
  begin
    Result := FTarItem.LinkName;
+@@ -734,7 +806,7 @@
+   { GNU_FORMAT is detected by the presence of GNU extended headers. }
+ 
+   { These detections are similar to GNU tar's. }
+-  if (PTarHeader.Magic.value = AB_TAR_MAGIC_VAL) then
++  if CompareByte(PTarHeader.Magic.value, AB_TAR_MAGIC_VAL, SizeOf(AB_TAR_MAGIC_VAL)) = 0 then
+   begin { We have one of three types, STAR_FORMAT, USTAR_FORMAT, POSIX_FORMAT }
+     { Detect STAR format.  Leave disabled until explicit STAR support is added. }
+     {if (PTarHeader.star.Prefix[130] = #00) and
+@@ -750,7 +822,7 @@
+     { This can define false positives, Pax headers/ STAR format could be detected as this }
+     FTarItem.ArchiveFormat := USTAR_FORMAT;
+   end
+-  else if (PTarHeader.Magic.gnuOld = AB_TAR_MAGIC_GNUOLD) then
++  else if CompareByte(PTarHeader.Magic.gnuOld, AB_TAR_MAGIC_GNUOLD, SizeOf(AB_TAR_MAGIC_GNUOLD)) = 0 then
+   begin
+     FTarItem.ArchiveFormat := OLDGNU_FORMAT;
+   end
 @@ -819,7 +891,7 @@
        RawFileName := PTarHeader.Name;
    end; { End not FoundName }
@@ -1781,12 +1799,14 @@ Index: AbUtils.pas
 ===================================================================
 --- AbUtils.pas	(revision 512)
 +++ AbUtils.pas	(working copy)
-@@ -60,10 +60,10 @@
+@@ -59,11 +59,11 @@
+   Posix.SysTypes,
  {$ENDIF}
  {$IFDEF UNIX}
-   DateUtils,
 +  DCClassesUtf8,
- {$ENDIF}
++{$ENDIF}
+   DateUtils,
+-{$ENDIF}
    SysUtils,
 -  Classes,
 -  AbCharset;
@@ -2072,7 +2092,32 @@ Index: AbUtils.pas
      Result := 0
    else Result := GetLastError;
  {$ENDIF MSWINDOWS}
-@@ -1166,12 +1193,7 @@
+@@ -1095,16 +1122,7 @@
+ end;
+ { -------------------------------------------------------------------------- }
+ function AbDosFileDateToDateTime(FileDate, FileTime : Word) : TDateTime;
+-{$IFDEF MSWINDOWS}
+ var
+-  Temp : LongInt;
+-begin
+-  LongRec(Temp).Lo := FileTime;
+-  LongRec(Temp).Hi := FileDate;
+-  Result := FileDateToDateTime(Temp);
+-{$ENDIF MSWINDOWS}
+-{$IFDEF UNIX}
+-var
+   Yr, Mo, Dy : Word;
+   Hr, Mn, S  : Word;
+ begin
+@@ -1131,7 +1149,6 @@
+   Result :=
+     EncodeDate(Yr, Mo, Dy) +
+     EncodeTime(Hr, Mn, S, 0);
+-{$ENDIF UNIX}
+ end;
+
+ function AbDateTimeToDosFileDate(Value : TDateTime) : LongInt;
+@@ -1166,12 +1183,7 @@
 
  function AbSetFileTime(const aFileName: string; aValue: TDateTime): Boolean;
  begin
@@ -2086,7 +2131,7 @@ Index: AbUtils.pas
  end;
 
  { -------------------------------------------------------------------------- }
-@@ -1188,7 +1210,8 @@
+@@ -1188,7 +1200,8 @@
  { -------------------------------------------------------------------------- }
  function AbDOS2UnixFileAttributes(Attr: LongInt): LongInt;
  begin
@@ -2096,7 +2141,7 @@ Index: AbUtils.pas
    Result := { default permissions }
      AB_FPERMISSION_OWNERREAD or
      AB_FPERMISSION_GROUPREAD or
-@@ -1201,12 +1224,14 @@
+@@ -1201,12 +1214,14 @@
      Result := Result or AB_FMODE_DIR or AB_FPERMISSION_OWNEREXECUTE
    else
      Result := Result or AB_FMODE_FILE;
@@ -2113,7 +2158,7 @@ Index: AbUtils.pas
    Result := 0;
    case (Attr and $F000) of
      AB_FMODE_FILE, AB_FMODE_FILE2: { standard file }
-@@ -1225,21 +1250,20 @@
+@@ -1225,21 +1240,20 @@
 
    if (Attr and AB_FPERMISSION_OWNERWRITE) <> AB_FPERMISSION_OWNERWRITE then
      Result := Result or faReadOnly;
@@ -2139,7 +2184,7 @@ Index: AbUtils.pas
  end;
  { -------------------------------------------------------------------------- }
  function AbFileGetSize(const aFileName : string) : Int64;
-@@ -1252,12 +1276,12 @@
+@@ -1252,12 +1266,12 @@
      Result := -1;
  end;
  { -------------------------------------------------------------------------- }
@@ -2155,7 +2200,7 @@ Index: AbUtils.pas
  {$ENDIF}
  {$IFDEF FPCUnixAPI}
    StatBuf: stat;
-@@ -1274,9 +1298,9 @@
+@@ -1274,9 +1288,9 @@
    aAttr.Attr := -1;
    aAttr.Mode := 0;
  {$IFDEF MSWINDOWS}
@@ -2167,7 +2212,7 @@ Index: AbUtils.pas
         FileTimeToDosDateTime(LocalFileTime, FileDate.Hi, FileDate.Lo) then
        aAttr.Time := FileDateToDateTime(Integer(FileDate));
      LARGE_INTEGER(aAttr.Size).LowPart := FindData.nFileSizeLow;
-@@ -1287,7 +1311,10 @@
+@@ -1287,7 +1301,10 @@
  {$ENDIF}
  {$IFDEF UNIX}
    {$IFDEF FPCUnixAPI}
@@ -2179,7 +2224,7 @@ Index: AbUtils.pas
    {$ENDIF}
    {$IFDEF LibcAPI}
    // Work around Kylix QC#2761: Stat64, et al., are defined incorrectly
-@@ -1313,10 +1340,10 @@
+@@ -1313,10 +1330,10 @@
  {-Get the volume label for the specified drive.}
  {$IFDEF MSWINDOWS}
  var
@@ -2192,7 +2237,7 @@ Index: AbUtils.pas
  {$ENDIF}
  begin
  {$IFDEF MSWINDOWS}
-@@ -1326,10 +1353,10 @@
+@@ -1326,10 +1343,10 @@
 
    Result := '';
 

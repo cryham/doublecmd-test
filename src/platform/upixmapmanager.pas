@@ -46,10 +46,14 @@ interface
 
 uses
   Classes, SysUtils, Graphics, syncobjs, uFileSorting, StringHashList,
-  uFile, uIconTheme, uDrive, uDisplayFile, uGlobs, uDCReadPSD
+  uFile, uIconTheme, uDrive, uDisplayFile, uGlobs, uDCReadPSD, uOSUtils
   {$IF DEFINED(UNIX)}
-    {$IF NOT DEFINED(DARWIN)}
-    , contnrs, uDCReadSVG, uGio, uOSUtils
+    {$IF DEFINED(DARWIN)}
+      {$IF (FPC_FULLVERSION >= 30000)}
+      , uDCTiffImage
+      {$ENDIF}
+    {$ELSE}
+    , contnrs, uDCReadSVG, uGio
       {$IFDEF LCLGTK2}
       , gtk2
       {$ELSE}
@@ -57,6 +61,9 @@ uses
       {$ENDIF}
     {$ENDIF}
   {$ENDIF};
+
+const
+  DC_THEME_NAME = 'dctheme';
 
 type
   TDriveIconList = record
@@ -170,6 +177,7 @@ type
     }
     function GetIconResourceIndex(const IconPath: String; out IconFile: String; out IconIndex: PtrInt): Boolean;
     function GetSystemFolderIcon: PtrInt;
+    function GetSystemArchiveIcon: PtrInt;
     function GetSystemExecutableIcon: PtrInt;
   {$ENDIF}
   {$IF DEFINED(UNIX) AND NOT DEFINED(DARWIN)}
@@ -709,14 +717,18 @@ begin
   gtk_icon_theme_set_custom_theme(FIconTheme, 'oxygen');
   }
   {$ELSE}
-  FIconTheme:= TUnixIconTheme.Create;
+  FIconTheme:= TIconTheme.Create(GetCurrentIconTheme,
+                                 GetUnixIconThemeBaseDirList,
+                                 GetUnixDefaultTheme);
   {$ENDIF}
 {$ENDIF}
 
   // Create DC theme.
-  SetLength(DirList, 1);
-  DirList[0] := ExcludeTrailingPathDelimiter(gpPixmapPath);
-  FDCIconTheme := TIconTheme.Create('dctheme', DirList);
+  if not gUseConfigInProgramDir then begin
+    AddString(DirList, IncludeTrailingBackslash(GetAppDataDir) + 'pixmaps');
+  end;
+  AddString(DirList, ExcludeTrailingPathDelimiter(gpPixmapPath));
+  FDCIconTheme := TIconTheme.Create(gIconTheme, DirList, DC_THEME_NAME);
 end;
 
 procedure TPixMapManager.DestroyIconTheme;
@@ -1080,8 +1092,9 @@ end;
 function TPixMapManager.GetMimeIcon(AFileExt: String; AIconSize: Integer): PtrInt;
 var
   I: Integer;
-  nImage: NSImage;
   nData: NSData;
+  nImage: NSImage;
+  bestRect: NSRect;
   nRepresentations: NSArray;
   nImageRep: NSImageRep;
   WorkStream: TBlobStream;
@@ -1090,16 +1103,30 @@ var
 begin
   Result:= -1;
   if not FUseSystemTheme then Exit;
-  nImage:= NSWorkspace.sharedWorkspace.iconForFileType(NSSTR(PChar(AFileExt)));
-  nRepresentations:= nImage.Representations;
   if AIconSize = 24 then AIconSize:= 32;
-  for I:= nRepresentations.Count - 1 downto 0 do
+  nImage:= NSWorkspace.sharedWorkspace.iconForFileType(NSSTR(PChar(AFileExt)));
+  // Try to find best representation for requested icon size
+  bestRect.origin.x:= 0;
+  bestRect.origin.y:= 0;
+  bestRect.size.width:= AIconSize;
+  bestRect.size.height:= AIconSize;
+  nImageRep:= nImage.bestRepresentationForRect_context_hints(bestRect, nil, nil);
+  if Assigned(nImageRep) then
   begin
-    nImageRep:= NSImageRep(nRepresentations.objectAtIndex(I));
-    if (AIconSize <> nImageRep.Size.Width) then
-      nImage.removeRepresentation(nImageRep);
+    nImage:= NSImage.Alloc.InitWithSize(nImageRep.Size);
+    nImage.AddRepresentation(nImageRep);
+  end
+  // Try old method
+  else begin
+    nRepresentations:= nImage.Representations;
+    for I:= nRepresentations.Count - 1 downto 0 do
+    begin
+      nImageRep:= NSImageRep(nRepresentations.objectAtIndex(I));
+      if (AIconSize <> nImageRep.Size.Width) then
+        nImage.removeRepresentation(nImageRep);
+    end;
+    if nImage.Representations.Count = 0 then Exit;
   end;
-  if nImage.Representations.Count = 0 then Exit;
   nData:= nImage.TIFFRepresentation;
   tfBitmap:= TTiffImage.Create;
   WorkStream:= TBlobStream.Create(nData.Bytes, nData.Length);
@@ -1114,6 +1141,7 @@ begin
     end;
   finally
     tfBitmap.Free;
+    nImage.Release;
     WorkStream.Free;
   end;
 end;
@@ -1156,6 +1184,26 @@ begin
     Result := -1
   else
     Result := FileInfo.iIcon + SystemIconIndexStart;
+end;
+
+function TPixMapManager.GetSystemArchiveIcon: PtrInt;
+const
+  SIID_ZIPFILE = 105;
+var
+  psii: TSHStockIconInfo;
+  SHGetStockIconInfo: function(siid: Int32; uFlags: UINT; var psii: TSHStockIconInfo): HRESULT; stdcall;
+begin
+  Result:= -1;
+  if (Win32MajorVersion > 5) then
+  begin
+    Pointer(SHGetStockIconInfo):= GetProcAddress(GetModuleHandle(Shell32), 'SHGetStockIconInfo');
+    if Assigned(SHGetStockIconInfo) then
+    begin
+      psii.cbSize:= SizeOf(TSHStockIconInfo);
+      if SHGetStockIconInfo(SIID_ZIPFILE, SHGFI_SYSICONINDEX, psii) = S_OK then
+        Result:= psii.iSysImageIndex + SystemIconIndexStart;
+    end;
+  end;
 end;
 
 function TPixMapManager.GetSystemExecutableIcon: PtrInt;
@@ -1327,7 +1375,7 @@ begin
   FiDefaultIconID:=CheckAddThemePixmap('unknown');
   {$IF DEFINED(MSWINDOWS) or DEFINED(DARWIN)}
   FiDirIconID := -1;
-  if gShowIcons > sim_standart then
+  if (gShowIcons > sim_standart) and (not (cimFolder in gCustomIcons)) then
     FiDirIconID := GetSystemFolderIcon;
   if FiDirIconID = -1 then
   {$ENDIF}
@@ -1337,6 +1385,12 @@ begin
   FiLinkIconID:=CheckAddThemePixmap('link');
   FiLinkBrokenIconID:=CheckAddThemePixmap('link-broken');
   FiUpDirIconID:=CheckAddThemePixmap('go-up');
+  {$IFDEF MSWINDOWS}
+  FiArcIconID := -1;
+  if (gShowIcons > sim_standart) and (not (cimArchive in gCustomIcons)) then
+    FiArcIconID := GetSystemArchiveIcon;
+  if FiArcIconID = -1 then
+  {$ENDIF}
   FiArcIconID := CheckAddThemePixmap('package-x-generic');
   {$IFDEF MSWINDOWS}
   FiExeIconID := -1;
@@ -1873,7 +1927,7 @@ begin
   Result := nil;
 {$IFDEF MSWINDOWS}
   if GetDeviceCaps(Application.MainForm.Canvas.Handle, BITSPIXEL) < 15 then Exit;
-  if (not gCustomDriveIcons) and (GetDeviceCaps(Application.MainForm.Canvas.Handle, BITSPIXEL) > 16) then
+  if (not (cimDrive in gCustomIcons)) and (GetDeviceCaps(Application.MainForm.Canvas.Handle, BITSPIXEL) > 16) then
     begin
       SFI.hIcon := 0;
       Result := Graphics.TBitMap.Create;

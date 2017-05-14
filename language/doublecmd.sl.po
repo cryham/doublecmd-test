@@ -3961,6 +3961,10 @@ msgstr "Določena širina stolpcev"
 msgid "Cut &text to column width"
 msgstr "&Okrajšaj besedilo na širino stolpca"
 
+#: tfrmoptionscolumnsview.cbextendcellwidth.caption
+msgid "&Extend cell width if text is not fitting into column"
+msgstr ""
+
 #: tfrmoptionscolumnsview.cbgridhorzline.caption
 msgid "&Horizontal lines"
 msgstr "&Vodoravne črte"
@@ -4015,6 +4019,12 @@ msgstr "&nastavitve"
 msgid "Searc&h/Replace history"
 msgstr "zgodovino iskanj in zamenjav"
 
+#: tfrmoptionsconfiguration.gbdirectories.caption
+#, fuzzy
+msgctxt "tfrmoptionsconfiguration.gbdirectories.caption"
+msgid "Directories"
+msgstr "Mape"
+
 #: tfrmoptionsconfiguration.gblocconfigfiles.caption
 msgid "Location of configuration files"
 msgstr "Privzeto mesto nastavitvenih datotek je:"
@@ -4030,6 +4040,14 @@ msgstr "Razvrščanje razdelkov nastavitev v drevesnem pogledu na levi:"
 #: tfrmoptionsconfiguration.lblcmdlineconfigdir.caption
 msgid "Set on command line"
 msgstr "Nastavi v ukazni vrstici"
+
+#: tfrmoptionsconfiguration.lbliconthemes.caption
+msgid "Icon themes:"
+msgstr ""
+
+#: tfrmoptionsconfiguration.lblthumbcache.caption
+msgid "Thumbnails cache:"
+msgstr ""
 
 #: tfrmoptionsconfiguration.rbprogramdir.caption
 msgid "P&rogram directory (portable version)"
@@ -6179,17 +6197,17 @@ msgstr "Pokaži prekrivne i&kone za npr. povezave"
 msgid "Disable special icons"
 msgstr "Onemogoči posebne ikone"
 
-#: tfrmoptionsicons.gbiconsinmenus.caption
-msgid "Icons in menus"
-msgstr "Ikone v meniju"
-
-#: tfrmoptionsicons.gbiconsonbuttons.caption
-msgid "Icons on buttons"
-msgstr "Ikone na gumbih"
-
 #: tfrmoptionsicons.gbiconssize.caption
 msgid " Icon size "
 msgstr "Velikost ikon"
+
+#: tfrmoptionsicons.gbicontheme.caption
+msgid "Icon theme"
+msgstr ""
+
+#: tfrmoptionsicons.gbshowicons.caption
+msgid "Show icons"
+msgstr ""
 
 #: tfrmoptionsicons.gbshowiconsmode.caption
 msgid " Show icons to the left of the filename "
@@ -8469,6 +8487,10 @@ msgstr "O pregledovalniku ..."
 #: tfrmviewer.actabout.hint
 msgid "Displays the About message"
 msgstr "Prikaže pogovorno okno podrobnosti"
+
+#: tfrmviewer.actchangeencoding.caption
+msgid "Change encoding"
+msgstr ""
 
 #: tfrmviewer.actcopyfile.caption
 msgctxt "tfrmviewer.actcopyfile.caption"
@@ -10758,9 +10780,17 @@ msgstr "Ali naj se »%s« neobnovljivo izbriše?"
 msgid "with"
 msgstr "z"
 
+#: ulng.rsmulrenautorename
+msgid "Do auto-rename to \"name (1).ext\", \"name (2).ext\" etc.?"
+msgstr ""
+
 #: ulng.rsmulrenfilenamestylelist
 msgid "No change;UPPERCASE;lowercase;First char uppercase;First Char Of Every Word Uppercase;"
 msgstr "Brez spremembe;VELIKE ČRKE;male črke;Prva črka je velika;Prva Črka Vsake Besede Je Velika;"
+
+#: ulng.rsmulrenwarningduplicate
+msgid "Warning, duplicate names!"
+msgstr ""
 
 #: ulng.rsmulrenwronglinesnumber
 msgid "File contains wrong number of lines: %d, should be %d!"

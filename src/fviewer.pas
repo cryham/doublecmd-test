@@ -57,6 +57,7 @@ type
     actImageCenter: TAction;
     actFullscreen: TAction;
     actCopyToClipboardFormatted: TAction;
+    actChangeEncoding: TAction;
     actShowAsDec: TAction;
     actScreenShotDelay5sec: TAction;
     actScreenShotDelay3Sec: TAction;
@@ -2092,6 +2093,9 @@ begin
       else
         begin
           msgOK(Format(rsViewNotFound, ['"' + sSearchTextU + '"']));
+          if (ViewerControl.Selection <> sSearchTextU) then begin
+            ViewerControl.SelectText(0, 0);
+          end;
           FLastSearchPos := -1;
         end;
     end;
@@ -2509,10 +2513,19 @@ begin
 end;
 
 procedure TfrmViewer.cm_ChangeEncoding(const Params: array of string);
+var
+  MenuItem: TMenuItem;
 begin
-  ViewerControl.EncodingName := Params[0];
-  Status.Panels[4].Text := rsViewEncoding + ': ' + ViewerControl.EncodingName;
-  miEncoding.Find(ViewerControl.EncodingName).Checked:=True;
+  if Length(Params) > 0 then
+  begin
+    MenuItem:= miEncoding.Find(Params[0]);
+    if Assigned(MenuItem) then
+    begin
+      MenuItem.Checked := True;
+      ViewerControl.EncodingName := Params[0];
+      Status.Panels[4].Text := rsViewEncoding + ': ' + ViewerControl.EncodingName;
+    end;
+  end;
 end;
 
 procedure TfrmViewer.cm_CopyToClipboard(const Params: array of string);

@@ -130,6 +130,7 @@ type
                      veUtf8,
                      veUtf8bom,
                      veAnsi,
+                     veOem,
                      veCp1250,
                      veCp1251,
                      veCp1252,
@@ -165,7 +166,8 @@ const
                    ('Auto-detect',
                     'UTF-8',
                     'UTF-8BOM',
-                    'Ansi',
+                    'ANSI',
+                    'OEM',
                     'CP1250',
                     'CP1251',
                     'CP1252',
@@ -503,7 +505,7 @@ implementation
 
 uses
   LCLType, LCLVersion, Graphics, Forms, LCLProc, Clipbrd, LConvEncoding,
-  DCUnicodeUtils, LCLIntf, LazUTF8, DCOSUtils
+  DCUnicodeUtils, LCLIntf, LazUTF8, DCOSUtils , DCConvertEncoding
   {$IF DEFINED(UNIX)}
   , BaseUnix, Unix
   {$ELSEIF DEFINED(WINDOWS)}
@@ -514,7 +516,7 @@ uses
 const
   //cTextWidth      = 80;  // wrap on 80 chars
   cBinWidth       = 80;
-  cMaxTextWidth   = 65535; // maximum of chars on one line unwrapped text
+  cMaxTextWidth   = 1024; // maximum of chars on one line unwrapped text
   cTabSpaces      = 8;   // tab stop - allow to set in settings
 
   // These strings must be Ascii only.
@@ -955,9 +957,9 @@ end;
 
 function TViewerControl.DecToValueProc(AChar:AnsiChar;AMaxDigitsCount:integer):AnsiString;
 begin
-  Result:=IntToStr(ord(AChar));
-  while length(Result)<AMaxDigitsCount do
-        Result:=' '+Result;
+  Result:= IntToStr(Ord(AChar));
+  while Length(Result) < AMaxDigitsCount do
+    Result:= '0' + Result;
 end;
 
 function TViewerControl.HexToValueProc(AChar:AnsiChar;AMaxDigitsCount:integer):AnsiString;
@@ -2683,16 +2685,35 @@ begin
 end;
 
 function TViewerControl.Selection: String;
+const
+  MAX_LEN = 512;
 var
   sText: String;
+  AIndex: PtrInt;
   ALength: PtrInt;
+  CharLenInBytes: Integer;
 begin
   if (FBlockEnd - FBlockBeg) <= 0 then
     Exit(EmptyStr);
   ALength:= FBlockEnd - FBlockBeg;
-  if ALength > 256 then ALength:= 256;
-  SetString(sText, GetDataAdr + FBlockBeg, ALength);
-  Result := ConvertToUTF8(sText);
+  if ALength <= MAX_LEN then
+  begin
+    SetString(sText, GetDataAdr + FBlockBeg, ALength);
+    Result := ConvertToUTF8(sText);
+  end
+  else begin
+    Result:= EmptyStr;
+    AIndex:= FBlockBeg;
+    ALength:= AIndex + MAX_LEN;
+    while AIndex < ALength do
+    begin
+      sText := GetNextCharAsUtf8(AIndex, CharLenInBytes);
+      if CharLenInBytes = 0 then
+        Break;
+      Result:= Result + sText;
+      AIndex:= AIndex + CharLenInBytes;
+    end;
+  end;
 end;
 
 function TViewerControl.GetNextCharAsAscii(const iPosition: PtrInt; out CharLenInBytes: Integer): Cardinal;
@@ -2721,7 +2742,7 @@ begin
           CharLenInBytes := 0;
       end;
 
-    veAnsi,
+    veAnsi, veOem,
     veCp1250..veCp950,
     veIso88591,
     veIso88592,
@@ -2843,7 +2864,7 @@ begin
           CharLenInBytes := 0;
       end;
 
-    veAnsi,
+    veAnsi, veOem,
     veCp1250..veCp950,
     veIso88591,
     veIso88592,
@@ -2951,7 +2972,7 @@ begin
       CharLenInBytes := SafeUTF8NextCharLen(GetDataAdr + iPosition,
                                             FHighLimit - iPosition,
                                             InvalidCharLen);
-    veAnsi,
+    veAnsi, veOem,
     veCp1250..veCp950,
     veIso88591,
     veIso88592,
@@ -2997,6 +3018,10 @@ begin
 
   case FEncoding of
     veAutoDetect: ;
+    veAnsi:
+      Result := CeAnsiToUtf8(sText);
+    veOem:
+      Result := CeOemToUtf8(sText);
     veUtf8, veUtf8bom:
       Result := Utf8ReplaceBroken(sText);
     veUtf16be:
@@ -3020,6 +3045,10 @@ begin
 
   case FEncoding of
     veAutoDetect: ;
+    veAnsi:
+      Result := CeUtf8ToAnsi(sText);
+    veOem:
+      Result := CeUtf8ToOem(sText);
     veUtf8, veUtf8bom:
       Result := sText;
     veUtf16be:
@@ -3349,7 +3378,7 @@ procedure TViewerControl.UpdateSelection;
           end;
         end;
 
-      veAnsi,
+      veAnsi, veOem,
       veCp1250..veCp950,
       veIso88591,
       veIso88592,

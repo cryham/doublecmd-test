@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: Double Commander 0.8.0 alpha\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2008-01-17 23:08+0300\n"
-"PO-Revision-Date: 2017-03-26 12:00+0200\n"
+"PO-Revision-Date: 2017-05-02 12:00+0200\n"
 "Last-Translator: Pepe López <kuidao@yahoo.es>\n"
 "Language-Team: Español; Castellano <>\n"
 "Language: es\n"
@@ -3960,6 +3960,10 @@ msgstr "Ancho fijo de columnas"
 msgid "Cut &text to column width"
 msgstr "Ajustar &texto al ancho de columna"
 
+#: tfrmoptionscolumnsview.cbextendcellwidth.caption
+msgid "&Extend cell width if text is not fitting into column"
+msgstr "Am&pliar el ancho de la celda si el texto no se ajusta a la columna"
+
 #: tfrmoptionscolumnsview.cbgridhorzline.caption
 msgid "&Horizontal lines"
 msgstr "Líneas &horizontales"
@@ -4014,6 +4018,11 @@ msgstr "&Guardar la configuración"
 msgid "Searc&h/Replace history"
 msgstr "&Historial de buscar/reemplazar"
 
+#: tfrmoptionsconfiguration.gbdirectories.caption
+msgctxt "tfrmoptionsconfiguration.gbdirectories.caption"
+msgid "Directories"
+msgstr "Carpetas"
+
 #: tfrmoptionsconfiguration.gblocconfigfiles.caption
 msgid "Location of configuration files"
 msgstr "Ubicación de los archivos de configuración"
@@ -4029,6 +4038,14 @@ msgstr "Ordenación de configuración en el árbol izquierdo"
 #: tfrmoptionsconfiguration.lblcmdlineconfigdir.caption
 msgid "Set on command line"
 msgstr "Fijar en la línea de comandos"
+
+#: tfrmoptionsconfiguration.lbliconthemes.caption
+msgid "Icon themes:"
+msgstr "Temas de iconos:"
+
+#: tfrmoptionsconfiguration.lblthumbcache.caption
+msgid "Thumbnails cache:"
+msgstr "Caché de miniaturas:"
 
 #: tfrmoptionsconfiguration.rbprogramdir.caption
 msgid "P&rogram directory (portable version)"
@@ -6181,17 +6198,17 @@ msgstr "Mostrar &iconos superpuestos (por ejemplo, para enlaces)"
 msgid "Disable special icons"
 msgstr "Deshabilitar iconos especiales"
 
-#: tfrmoptionsicons.gbiconsinmenus.caption
-msgid "Icons in menus"
-msgstr "Iconos en menús"
-
-#: tfrmoptionsicons.gbiconsonbuttons.caption
-msgid "Icons on buttons"
-msgstr "Iconos en los botones"
-
 #: tfrmoptionsicons.gbiconssize.caption
 msgid " Icon size "
 msgstr " Tamaño de los iconos "
+
+#: tfrmoptionsicons.gbicontheme.caption
+msgid "Icon theme"
+msgstr "Tema de icono"
+
+#: tfrmoptionsicons.gbshowicons.caption
+msgid "Show icons"
+msgstr "Mostrar iconos"
 
 #: tfrmoptionsicons.gbshowiconsmode.caption
 msgid " Show icons to the left of the filename "
@@ -8475,6 +8492,10 @@ msgstr "Acerca del Visor..."
 #: tfrmviewer.actabout.hint
 msgid "Displays the About message"
 msgstr "Mostrar el mensaje «Acerca de...»"
+
+#: tfrmviewer.actchangeencoding.caption
+msgid "Change encoding"
+msgstr ""
 
 #: tfrmviewer.actcopyfile.caption
 msgctxt "tfrmviewer.actcopyfile.caption"
@@ -10779,9 +10800,17 @@ msgstr "¿Quieres destruir «%s»?"
 msgid "with"
 msgstr "con"
 
+#: ulng.rsmulrenautorename
+msgid "Do auto-rename to \"name (1).ext\", \"name (2).ext\" etc.?"
+msgstr ""
+
 #: ulng.rsmulrenfilenamestylelist
 msgid "No change;UPPERCASE;lowercase;First char uppercase;First Char Of Every Word Uppercase;"
 msgstr "Sin cambios;MAYÚSCULAS;minúsculas;Primera letra en mayúscula;Primera Letra De Cada Palabra En Mayúsculas"
+
+#: ulng.rsmulrenwarningduplicate
+msgid "Warning, duplicate names!"
+msgstr ""
 
 #: ulng.rsmulrenwronglinesnumber
 msgid "File contains wrong number of lines: %d, should be %d!"
