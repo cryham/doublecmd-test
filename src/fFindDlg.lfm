@@ -1387,6 +1387,7 @@ object frmFindDlg: TfrmFindDlg
   object PopupMenuFind: TPopupMenu
     left = 312
     top = 48
+    OnPopup = PopupMenuFindPopup
     object miOpenInNewTab: TMenuItem
       Caption = 'Open In New Tab(s)'
       OnClick = miOpenInNewTabClick
@@ -1491,6 +1492,14 @@ object frmFindDlg: TfrmFindDlg
     end
     object actConfigFileSearchHotKeys: TAction
       Caption = 'Configuration of hot keys'
+      OnExecute = actExecute
+    end
+    object actPageNext: TAction
+      Caption = 'Switch to Nex&t Page'
+      OnExecute = actExecute
+    end
+    object actPagePrev: TAction
+      Caption = 'Switch to &Previous Page'
       OnExecute = actExecute
     end
   end

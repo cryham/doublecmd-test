@@ -102,7 +102,6 @@ type
     FDragFileIndex: PtrInt;
     FDropFileIndex: PtrInt;
     FStartDrag: Boolean;
-    FStartDragTick: QWord;
     tmContextMenu: TTimer;
     // Needed for rename on mouse
     FRenameFileIndex: PtrInt;
@@ -150,6 +149,7 @@ type
     procedure MainControlMouseUp(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
     procedure MainControlShowHint(Sender: TObject; HintInfo: PHintInfo);
     procedure MainControlUTF8KeyPress(Sender: TObject; var UTF8Key: TUTF8Char);
+    procedure MainControlResize(Sender: TObject);
     procedure MainControlWindowProc(var TheMessage: TLMessage);
     {en
        Updates the drop row index, which is used to draw a rectangle
@@ -161,6 +161,7 @@ type
 
 //    procedure ShowRenameFileEdit(AFile: TFile); virtual;
     procedure ShowRenameFileEdit(AFile: TFile); virtual;
+    procedure UpdateRenameFileEditPosition; virtual;abstract;
     procedure RenameSelectPart(AActionType:TRenameFileActionType); virtual;
 
     property MainControl: TWinControl read FMainControl write SetMainControl;
@@ -437,7 +438,7 @@ begin
   FileIndex := GetFileIndexFromCursor(Point.x, Point.y, AtFileList);
   if IsFileIndexInRange(FileIndex) then
   begin
-{$IF DEFINED(LCLQT)}
+{$IF DEFINED(LCLQT) or DEFINED(LCLQT5)}
     // Workaround: under Qt4 widgetset long operation (opening archive
     // for example) blocking mouse at whole system while operation executing
     Sleep(100);
@@ -678,7 +679,7 @@ begin
     case Button of
       mbRight:
       begin
-        SetActiveFile(FileIndex);
+        SetActiveFile(FileIndex, False);
 
         if gMouseSelectionEnabled and (gMouseSelectionButton = 1) then
         begin
@@ -751,7 +752,6 @@ begin
       FDragStartPoint.X := X;
       FDragStartPoint.Y := Y;
       FDragFileIndex := FileIndex;
-      FStartDragTick := GetTickCount64;
       uDragDropEx.TransformDragging := False;
       uDragDropEx.AllowTransformToInternal := True;
     end;
@@ -808,7 +808,7 @@ begin
   else
 
   // if we are about to start dragging
-  if FStartDrag and ((GetTickCount64 - FStartDragTick > 100) or (Shift * [ssShift, ssAlt, ssCtrl] <> [])) then
+  if FStartDrag then
     begin
       FStartDrag := False;
 
@@ -885,13 +885,16 @@ begin
         SelEndIndex := FMouseSelectionStartIndex;
       end;
 
-      SetActiveFile(FileIndex);
+      SetActiveFile(FileIndex, False);
       MarkFiles(SelStartIndex, SelEndIndex, FMouseSelectionLastState);
     end;
   end;
 end;
 
 procedure TFileViewWithMainCtrl.MainControlMouseUp(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
+var
+  FileIndex: PtrInt;
+  AtFileList: Boolean;
 begin
   if IsLoadingFileList then Exit;
 
@@ -905,11 +908,27 @@ begin
   if IsMouseSelecting and (GetCaptureControl = MainControl) then
     SetCaptureControl(nil);
 
-  // A single click starts programs and opens files
+  // A single click is used to open items
   if (gMouseSingleClickStart > 0) and (Button = mbLeft) and
      (Shift * [ssShift, ssAlt, ssCtrl] = []) and FMouseFocus then
   begin
-    MainControlDblClick(Sender);
+    // A single click only opens folders. For files, a double click is needed.
+    if (gMouseSingleClickStart and 2 <> 0) then
+    begin
+      FileIndex := GetFileIndexFromCursor(X, Y, AtFileList);
+      if IsFileIndexInRange(FileIndex) then
+      begin
+        with FFiles[FileIndex].FSFile do
+        begin
+          if (IsDirectory or IsLinkToDirectory) then
+            MainControlDblClick(Sender);
+        end;
+      end
+    end
+    // A single click starts programs and opens files
+    else begin
+      MainControlDblClick(Sender);
+    end;
   end;
 
   FMainControlMouseDown := False;
@@ -947,6 +966,12 @@ begin
   // check if ShiftState is equal to quick search / filter modes
   if quickSearch.CheckSearchOrFilter(UTF8Key) then
     Exit;
+end;
+
+procedure TFileViewWithMainCtrl.MainControlResize(Sender: TObject);
+begin
+  if edtRename.Visible then
+    UpdateRenameFileEditPosition;
 end;
 
 procedure TFileViewWithMainCtrl.MainControlWindowProc(var TheMessage: TLMessage);
@@ -1120,6 +1145,8 @@ begin
         TControlHandlersHack(MainControl).DragCursor:= crArrowCopy
       else
         TControlHandlersHack(MainControl).DragCursor:= crDrag;
+
+      DragManager.DragMove(Mouse.CursorPos);
     end
   else
     TControlHandlersHack(MainControl).DragCursor:= crDrag;
@@ -1158,6 +1185,7 @@ begin
   FMainControl.OnKeyUp        := @MainControlKeyUp;
   FMainControl.OnShowHint     := @MainControlShowHint;
   FMainControl.OnUTF8KeyPress := @MainControlUTF8KeyPress;
+  FMainControl.AddHandlerOnResize(@MainControlResize);
 
   TControlHandlersHack(FMainControl).OnDblClick   := @MainControlDblClick;
   TControlHandlersHack(FMainControl).OnQuadClick  := @MainControlQuadClick;

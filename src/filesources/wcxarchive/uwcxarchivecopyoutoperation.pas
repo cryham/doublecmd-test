@@ -517,11 +517,10 @@ begin
       TargetDir := Paths.List[PathIndex]^.Key;
 
       try
-{$IF DEFINED(MSWINDOWS)}
-        // Restore attributes, e.g., hidden, read-only.
-        // On Unix attributes value would have to be translated somehow.
+        // Restore attributes
         mbFileSetAttr(TargetDir, Header.FileAttr);
 
+{$IF DEFINED(MSWINDOWS)}
         DosToWinTime(TDosFileTime(Header.FileTime), Time);
 {$ELSE}
   {$PUSH}{$R-}
@@ -552,7 +551,7 @@ var
 
   function OverwriteOlder: TFileSourceOperationOptionFileExists;
   begin
-    if WcxFileTimeToDateTime(Header) > FileTimeToDateTime(mbFileAge(AbsoluteTargetFileName)) then
+    if WcxFileTimeToDateTime(Header.FileTime) > FileTimeToDateTime(mbFileAge(AbsoluteTargetFileName)) then
       Result := fsoofeOverwrite
     else
       Result := fsoofeSkip;
@@ -582,7 +581,7 @@ begin
       repeat
         Answer := True;
         Message:= FileExistsMessage(AbsoluteTargetFileName, Header.FileName,
-                                    Header.UnpSize, WcxFileTimeToDateTime(Header));
+                                    Header.UnpSize, WcxFileTimeToDateTime(Header.FileTime));
         case AskQuestion(Message, '',
                          PossibleResponses, fsourOverwrite, fsourSkip) of
           fsourOverwrite:

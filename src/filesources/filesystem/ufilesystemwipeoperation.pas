@@ -12,7 +12,7 @@
    degauss of the disk, or by disintegrating, incinerating,
    pulverizing, shreding, or melting the disk.
 
-   Copyright (C) 2008-2012  Alexander Koblov (alexx2000@mail.ru)
+   Copyright (C) 2008-2017  Alexander Koblov (alexx2000@mail.ru)
 
    Based on:
 
@@ -94,7 +94,7 @@ type
 implementation
 
 uses
-  uDebug, uLng, uFindEx, DCClassesUtf8, uFileSystemUtil, DCOSUtils;
+  uDebug, uLng, uFindEx, DCClassesUtf8, uFileSystemUtil, uRandom, DCOSUtils;
 
 constructor TFileSystemWipeOperation.Create(aTargetFileSource: IFileSource;
                                             var theFilesToWipe: TFiles);
@@ -183,23 +183,23 @@ end;
 //0 = with 0, 1 = with 1 and 2 = random
 procedure TFileSystemWipeOperation.Fill(chr: Integer);
 var
-  I: Integer;
+  Count: Integer;
 begin
+  Count:= Length(buffer);
   case chr of
     0:
       begin
-        for I := Low(buffer) to High(buffer) do
-          buffer[I] := $00;
+        Count:= Count div SizeOf(DWord);
+        FillDWord(buffer[0], Count, $00000000);
       end;
     1:
       begin
-        for I := Low(buffer) to High(buffer) do
-          buffer[I] := $FF;
+        Count:= Count div SizeOf(DWord);
+        FillDWord(buffer[0], Count, $FFFFFFFF);
       end;
     2:
       begin
-        for I := Low(buffer) to High(buffer) do
-          buffer[I] := Random($100);
+        Random(buffer, Count);
       end;
   end;
 end;
@@ -284,7 +284,7 @@ begin
       Exit;
     end;
   files:= files+1;
-  DCDebug('OK');
+  // DCDebug('OK');
   FEverythingOK:= True;
 end;
 
@@ -309,12 +309,12 @@ begin
 
         if fpS_ISDIR(Search.Attr) then
           begin
-            DCDebug('Entering '+ sPath + Search.Name);
+            // DCDebug('Entering '+ sPath + Search.Name);
             WipeDir(sPath + Search.Name);
           end
         else
           begin
-            DCDebug('Wiping '+ sPath + Search.Name);
+            // DCDebug('Wiping '+ sPath + Search.Name);
             SecureDelete(gWipePassNumber, sPath + Search.Name);
           end;
       end;
@@ -324,7 +324,7 @@ begin
   try
     if FEverythingOK then
       begin
-        DCDebug('Wiping ' + dir);
+        // DCDebug('Wiping ' + dir);
 
         if not mbRemoveDir(dir) then
           begin
@@ -336,7 +336,7 @@ begin
         else
           begin
             directories:= directories + 1;
-            DCDebug('OK');
+            // DCDebug('OK');
             // write log -------------------------------------------------------------------
             LogMessage(Format(rsMsgLogSuccess+rsMsgLogWipeDir, [dir]), [log_dir_op, log_delete], lmtSuccess);
             //------------------------------------------------------------------------------
@@ -375,7 +375,7 @@ begin
         Exit;
       end;
 
-      DCDebug('Wiping ' + sPath + SRec.Name);
+      // DCDebug('Wiping ' + sPath + SRec.Name);
       SecureDelete(gWipePassNumber, sPath + SRec.Name);
       // write log -------------------------------------------------------------------
       if FEverythingOK then

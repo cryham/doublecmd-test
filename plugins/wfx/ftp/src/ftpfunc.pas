@@ -3,7 +3,7 @@
    -------------------------------------------------------------------------
    Wfx plugin for working with File Transfer Protocol
 
-   Copyright (C) 2009-2015 Alexander Koblov (alexx2000@mail.ru)
+   Copyright (C) 2009-2017 Alexander Koblov (alexx2000@mail.ru)
 
    This library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -17,7 +17,7 @@
 
    You should have received a copy of the GNU Lesser General Public
    License along with this library; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301 USA
 }
 
 unit FtpFunc;
@@ -43,9 +43,12 @@ type
     PassiveMode: Boolean;
     AutoTLS: Boolean;
     FullSSL: Boolean;
+    OpenSSH: Boolean;
+    UseAllocate: Boolean;
     Encoding: AnsiString;
     InitCommands: AnsiString;
     PasswordChanged: Boolean;
+    KeepAliveTransfer: Boolean;
   end;
 
 function FsInitW(PluginNr: Integer; pProgressProc: TProgressProcW;
@@ -75,6 +78,8 @@ function FsDisconnectW(DisconnectRoot: PWideChar): BOOL; dcpcall;
 procedure FsSetCryptCallbackW(pCryptProc: TCryptProcW; CryptoNr, Flags: Integer); dcpcall;
 procedure FsGetDefRootName(DefRootName: PAnsiChar; MaxLen: Integer); dcpcall;
 procedure FsSetDefaultParams(dps: pFsDefaultParamStruct); dcpcall;
+procedure FsStatusInfoW(RemoteDir: PWideChar; InfoStartEnd, InfoOperation: Integer); dcpcall;
+function FsGetBackgroundFlags: Integer; dcpcall;
 { Network API }
 {
 procedure FsNetworkGetSupportedProtocols(Protocols: PAnsiChar; MaxLen: LongInt); dcpcall;
@@ -104,14 +109,18 @@ implementation
 
 uses
   IniFiles, StrUtils, FtpAdv, FtpUtils, FtpConfDlg, syncobjs, LazFileUtils,
-  LazUTF8, DCClassesUtf8;
+  LazUTF8, DCClassesUtf8, SftpSend;
 
 var
   DefaultIniName: String;
+  TcpKeepAlive: Boolean = True;
   ActiveConnectionList, ConnectionList: TStringList;
   IniFile: TIniFile;
   HasDialogAPI: Boolean = False;
   ListLock: TCriticalSection;
+
+threadvar
+  ThreadCon: TFtpSendEx;
 
 const
   cAddConnection = '<Add connection>';
@@ -153,7 +162,10 @@ begin
     Connection.PassiveMode:= IniFile.ReadBool('FTP', 'Connection' + sIndex + 'PassiveMode', True);
     Connection.AutoTLS:= IniFile.ReadBool('FTP', 'Connection' + sIndex + 'AutoTLS', False);
     Connection.FullSSL:= IniFile.ReadBool('FTP', 'Connection' + sIndex + 'FullSSL', False);
+    Connection.OpenSSH:= IniFile.ReadBool('FTP', 'Connection' + sIndex + 'OpenSSH', False);
+    Connection.UseAllocate:= IniFile.ReadBool('FTP', 'Connection' + sIndex + 'UseAllocate', False);
     Connection.InitCommands := IniFile.ReadString('FTP', 'Connection' + sIndex + 'InitCommands', EmptyStr);
+    Connection.KeepAliveTransfer := IniFile.ReadBool('FTP', 'Connection' + sIndex + 'KeepAliveTransfer', False);
     // add connection to connection list
     ConnectionList.AddObject(Connection.ConnectionName, Connection);
   end;
@@ -186,7 +198,10 @@ begin
     IniFile.WriteBool('FTP', 'Connection' + sIndex + 'PassiveMode', Connection.PassiveMode);
     IniFile.WriteBool('FTP', 'Connection' + sIndex + 'AutoTLS', Connection.AutoTLS);
     IniFile.WriteBool('FTP', 'Connection' + sIndex + 'FullSSL', Connection.FullSSL);
+    IniFile.WriteBool('FTP', 'Connection' + sIndex + 'OpenSSH', Connection.OpenSSH);
+    IniFile.WriteBool('FTP', 'Connection' + sIndex + 'UseAllocate', Connection.UseAllocate);
     IniFile.WriteString('FTP', 'Connection' + sIndex + 'InitCommands', Connection.InitCommands);
+    IniFile.WriteBool('FTP', 'Connection' + sIndex + 'KeepAliveTransfer', Connection.KeepAliveTransfer);
   end;
   IniFile.UpdateFile;
 end;
@@ -292,11 +307,18 @@ begin
       if I >= 0 then
       begin
         Connection := TConnection(ConnectionList.Objects[I]);
-        FtpSend := TFTPSendEx.Create(Connection.Encoding);
+        if Connection.OpenSSH then
+          FtpSend := TSftpSend.Create(Connection.Encoding)
+        else begin
+          FtpSend := TFTPSendEx.Create(Connection.Encoding);
+          FtpSend.KeepAliveTransfer := Connection.KeepAliveTransfer;
+        end;
+        FtpSend.TcpKeepAlive := TcpKeepAlive;
         FtpSend.TargetHost := Connection.Host;
         FtpSend.PassiveMode:= Connection.PassiveMode;
         FtpSend.AutoTLS:= Connection.AutoTLS;
         FtpSend.FullSSL:= Connection.FullSSL;
+        FtpSend.UseAllocate:= Connection.UseAllocate;
         if Connection.Port <> EmptyStr then
           FtpSend.TargetPort := Connection.Port
         else if Connection.FullSSL then
@@ -511,7 +533,14 @@ begin
   Result := False;
   if (ExtractFileDir(sPath) = PathDelim) then Exit;
   sConnName := ExtractConnectionName(UTF16ToUTF8(sPath));
-  Result:= FtpConnect(sConnName, FtpSend);
+  if Assigned(ThreadCon) then
+  begin
+    Result:= True;
+    FtpSend:= ThreadCon;
+  end
+  else begin
+    Result:= FtpConnect(sConnName, FtpSend);
+  end;
   if Result then begin
     RemotePath:= FtpSend.ClientToServer(sPath);
     RemotePath:= ExtractRemoteFileName(RemotePath);
@@ -545,37 +574,6 @@ begin
   end;
 end;
 
-function RemoteFindNext(Hdl: THandle; var FindData: TWin32FindDataW): Boolean;
-var
-  ListRec: PListRec absolute Hdl;
-  I: Integer;
-begin
-  Result := False;
-  if Assigned(ListRec^.FtpList) then
-    with ListRec^ do
-    begin
-      I := Index;
-      if I < FtpList.Count then
-      begin
-        FillChar(FindData, SizeOf(FindData), 0);
-        StrPCopy(FindData.cFileName, FtpSend.ServerToClient(FtpList.Items[I].FileName));
-        FindData.dwFileAttributes := FindData.dwFileAttributes or FILE_ATTRIBUTE_UNIX_MODE;
-        if FtpList.Items[I].Directory then
-          FindData.dwFileAttributes := FindData.dwFileAttributes or FILE_ATTRIBUTE_DIRECTORY
-        else
-          begin
-            FindData.nFileSizeLow := (FtpList.Items[I].FileSize and MAXDWORD);
-            FindData.nFileSizeHigh := (FtpList.Items[I].FileSize shr $20);
-          end;
-        // set Unix permissions
-        FindData.dwReserved0 := ModeStr2Mode(FtpList.Items[I].Permission);
-        FindData.ftLastWriteTime := DateTimeToFileTime(FtpList.Items[I].FileTime);
-        Inc(ListRec^.Index);
-        Result := True;
-      end;
-    end;
-end;
-
 function FsInitW(PluginNr: Integer; pProgressProc: TProgressProcW;
   pLogProc: TLogProcW; pRequestProc: TRequestProcW): Integer; dcpcall;
 begin
@@ -595,9 +593,10 @@ var
   Directory: UnicodeString;
 begin
   New(ListRec);
-  ListRec.Path := Path;
   ListRec.Index := 0;
-  ListRec.FtpList:= nil;
+  ListRec.Path := Path;
+  ListRec.FtpSend := nil;
+  ListRec.FtpList := nil;
   Result := wfxInvalidHandle;
 
   if Path = PathDelim then
@@ -615,18 +614,8 @@ begin
         if GetConnectionByPath(Directory, FtpSend, sPath) then
         begin
           ListRec.FtpSend := FtpSend;
-          // Get directory listing
-          if FtpSend.List(sPath, False) then
-          begin
-            if FtpSend.FtpList.Count > 0 then
-            begin
-              // Save file list
-              ListRec.FtpList:= TFTPListEx.Create;
-              ListRec.FtpList.Assign(FtpSend.FtpList);
-              Result := THandle(ListRec);
-              RemoteFindNext(Result, FindData);
-            end;
-          end;
+          ListRec.FtpList := FtpSend.FsFindFirstW(sPath, FindData);
+          if Assigned(ListRec.FtpList) then Result:= THandle(ListRec);
         end;
       finally
         ListLock.Release;
@@ -643,20 +632,21 @@ begin
   if ListRec.Path = PathDelim then
     Result := LocalFindNext(Hdl, FindData)
   else
-    Result := RemoteFindNext(Hdl, FindData);
+    Result := ListRec^.FtpSend.FsFindNextW(ListRec.FtpList, FindData);
 end;
 
 function FsFindClose(Hdl: THandle): Integer; dcpcall;
 var
   ListRec: PListRec absolute Hdl;
 begin
+  Result:= 0;
   if Assigned(ListRec) then
   begin
-    if Assigned(ListRec^.FtpList) then
-      FreeAndNil(ListRec^.FtpList);
+    if Assigned(ListRec^.FtpSend) then begin
+      Result:= ListRec^.FtpSend.FsFindClose(ListRec.FtpList);
+    end;
     Dispose(ListRec);
   end;
-  Result:= 0;
 end;
 
 function FsExecuteFileW(MainWin: THandle; RemoteName, Verb: PWideChar): Integer; dcpcall;
@@ -706,7 +696,7 @@ begin
     begin
       if GetConnectionByPath(RemoteName, FtpSend, asFileName) then
       begin
-        if (FtpSend.FTPCommand('SITE' + #32 + AnsiString(UnicodeString(Verb)) + #32 + asFileName) div 100) = 2 then
+        if FtpSend.ChangeMode(asFileName, AnsiString(Copy(Verb, 7, MaxInt))) then
           Result:= FS_EXEC_OK
         else
           Result := FS_EXEC_ERROR;
@@ -716,8 +706,9 @@ begin
     begin
       if GetConnectionByPath(RemoteName, FtpSend, asFileName) then
       begin
-        if (FtpSend.FTPCommand(AnsiString(Copy(Verb, 7, MaxInt))) div 100) = 2 then
-          Result:= FS_EXEC_OK
+        asFileName:= FtpSend.ClientToServer(Verb);
+        if FtpSend.ExecuteCommand(Copy(asFileName, 7, MaxInt)) then
+          Result := FS_EXEC_OK
         else
           Result := FS_EXEC_ERROR;
       end;
@@ -851,18 +842,10 @@ function FsMkDirW(RemoteDir: PWideChar): BOOL; dcpcall;
 var
   sPath: AnsiString;
   FtpSend: TFTPSendEx;
-  sOldPath: AnsiString;
 begin
   Result := False;
   if GetConnectionByPath(RemoteDir, FtpSend, sPath) then
-  begin
-    sOldPath := FtpSend.GetCurrentDir;
-    if FtpSend.ChangeWorkingDir(sPath) then
-      Result := FtpSend.ChangeWorkingDir(sOldPath)
-    else begin
-      Result := FtpSend.CreateDir(sPath);
-    end;
-  end;
+    Result := FtpSend.CreateDir(sPath);
 end;
 
 function FsRemoveDirW(RemoteName: PWideChar): BOOL; dcpcall;
@@ -881,11 +864,12 @@ var
   sPath: AnsiString;
   FtpSend: TFTPSendEx;
 begin
-  Result := False;
-  if Assigned(LastWriteTime) then
-  begin
-    if GetConnectionByPath(RemoteName, FtpSend, sPath) then
-      Result := FtpSend.SetTime(sPath, LastWriteTime^);
+  if (LastAccessTime = nil) and (LastWriteTime = nil) then
+    Result := False
+  else if GetConnectionByPath(RemoteName, FtpSend, sPath) then
+    Result := FtpSend.FsSetTime(sPath, LastAccessTime, LastWriteTime)
+  else begin
+    Result := False;
   end;
 end;
 
@@ -922,6 +906,40 @@ begin
   ConnectionList := TStringList.Create;
   ActiveConnectionList := TStringList.Create;
   DefaultIniName:= ExtractFileName(dps.DefaultIniName);
+end;
+
+procedure FsStatusInfoW(RemoteDir: PWideChar; InfoStartEnd, InfoOperation: Integer); dcpcall;
+var
+  FtpSend: TFtpSendEx;
+  RemotePath: AnsiString;
+begin
+  if (InfoOperation in [FS_STATUS_OP_GET_MULTI_THREAD, FS_STATUS_OP_PUT_MULTI_THREAD]) then
+  begin
+    if InfoStartEnd = FS_STATUS_START then
+    begin
+      if GetConnectionByPath(RemoteDir, FtpSend, RemotePath) then
+      begin
+        LogProc(PluginNumber, msgtype_details, 'Create background connection');
+        ThreadCon:= FtpSend.Clone;
+        if not ThreadCon.Login then
+        begin
+          FreeAndNil(ThreadCon);
+          LogProc(PluginNumber, msgtype_importanterror, 'Cannot create background connection, use foreground');
+        end;
+      end;
+    end
+    else if Assigned(ThreadCon) then
+    begin
+      LogProc(PluginNumber, msgtype_details, 'Destroy background connection');
+      ThreadCon.Logout;
+      FreeAndNil(ThreadCon);
+    end;
+  end;
+end;
+
+function FsGetBackgroundFlags: Integer; dcpcall;
+begin
+  Result:= BG_DOWNLOAD or BG_UPLOAD or BG_ASK_USER;
 end;
 
 {
@@ -1016,6 +1034,10 @@ begin
 
   DefaultIniName:= gStartupInfo.PluginConfDir + DefaultIniName;
   IniFile := TIniFileEx.Create(DefaultIniName, fmOpenReadWrite);
+
+  // Use TCP keep alive for all connections: Useful for certain
+  // firewalls/router if the connection breaks very often.
+  TcpKeepAlive := IniFile.ReadBool('General', 'TcpKeepAlive', TcpKeepAlive);
 
   ReadConnectionList;
 

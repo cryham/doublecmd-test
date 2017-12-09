@@ -652,12 +652,14 @@ begin
         case TypeOfCopy of
           cfntcPathAndFileNames, cfntcJustPathWithSeparator, cfntcPathWithoutSeparator:
             begin
+              PathToAdd:= SelectedFiles[I].Path;
+
               // Workaround for not fully implemented TMultiListFileSource.
-              if not FileView.FileSource.IsClass(TMultiListFileSource) then
-                PathToAdd := FileView.CurrentAddress
-              else
-                PathToAdd := '';
-              PathToAdd := PathToAdd + SelectedFiles[I].Path;
+              if (Pos(FileView.CurrentAddress, PathToAdd) <> 1) and
+                 (not FileView.FileSource.IsClass(TMultiListFileSource)) then
+              begin
+                PathToAdd := FileView.CurrentAddress + PathToAdd;
+              end;
 
               if TypeOfCopy=cfntcPathWithoutSeparator then PathToAdd:=ExcludeTrailingPathDelimiter(PathToAdd);
             end;
@@ -1058,15 +1060,31 @@ begin
 end;
 
 procedure TMainCommands.cm_FlatView(const Params: array of string);
+var
+  AFile: TFile;
 begin
-  if not (fspListFlatView in frmMain.ActiveFrame.FileSource.GetProperties) then
+  with frmMain do
+  if not (fspListFlatView in ActiveFrame.FileSource.GetProperties) then
   begin
     msgWarning(rsMsgErrNotSupported);
   end
   else
   begin
-    frmMain.ActiveFrame.FlatView:= not frmMain.ActiveFrame.FlatView;
-    frmMain.ActiveFrame.Reload;
+    ActiveFrame.FlatView:= not ActiveFrame.FlatView;
+    if not ActiveFrame.FlatView then
+    begin
+      AFile:= ActiveFrame.CloneActiveFile;
+      if Assigned(AFile) and AFile.IsNameValid then
+      begin
+        if not mbCompareFileNames(ActiveFrame.CurrentPath, AFile.Path) then
+        begin
+          ActiveFrame.CurrentPath:= AFile.Path;
+          ActiveFrame.SetActiveFile(AFile.Name);
+        end;
+      end;
+      AFile.Free;
+    end;
+    ActiveFrame.Reload;
   end;
 end;
 
@@ -2657,7 +2675,7 @@ var
 begin
   with frmMain do
   begin
-    // For now work only for filesystem.
+    // For now works only for file source with direct access.
     // Later use temporary file system for other file sources.
 
     try
@@ -2672,8 +2690,8 @@ begin
       end
       else
       begin
-        // For now work only for filesystem.
-        if not (ActiveFrame.FileSource.IsClass(TFileSystemFileSource)) then
+        // For now works only for file source with direct access.
+        if not (fspDirectAccess in ActiveFrame.FileSource.Properties) then
         begin
           msgWarning(rsMsgNotImplemented);
           Exit;
@@ -2702,8 +2720,8 @@ begin
 
             if NotActiveSelectedFiles.Count = 1 then
             begin
-              // For now work only for filesystem.
-              if not (NotActiveFrame.FileSource.IsClass(TFileSystemFileSource)) then
+              // For now works only for file source with direct access.
+              if not (fspDirectAccess in NotActiveFrame.FileSource.Properties) then
               begin
                 msgWarning(rsMsgNotImplemented);
                 Exit;
@@ -3088,7 +3106,7 @@ end;
 //
 procedure TMainCommands.cm_ConfigDirHotList(const Params: array of string);
 begin
-  cm_WorkWithDirectoryHotlist(['action=config', 'source='+QuoteStr(frmMain.ActiveFrame.CurrentPath), 'target='+QuoteStr(frmMain.NotActiveFrame.CurrentPath), 'index=0']);
+  cm_WorkWithDirectoryHotlist(['action=config', 'source='+QuoteStr(frmMain.ActiveFrame.CurrentLocation), 'target='+QuoteStr(frmMain.NotActiveFrame.CurrentLocation), 'index=0']);
 end;
 
 { TMainCommands.cm_WorkWithDirectoryHotlist }

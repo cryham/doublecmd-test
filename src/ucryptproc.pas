@@ -3,7 +3,7 @@
     -------------------------------------------------------------------------
     This unit contains Encrypt/Decrypt classes and functions.
 
-    Copyright (C) 2009  Koblov Alexander (Alexx2000@mail.ru)
+    Copyright (C) 2009-2017 Alexander Koblov (alexx2000@mail.ru)
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -16,8 +16,7 @@
     GNU General Public License for more details.
 
     You should have received a copy of the GNU General Public License
-    along with this program; if not, write to the Free Software
-    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
 }
 
 unit uCryptProc;
@@ -35,8 +34,13 @@ type
 
   TPasswordStore = class(TIniFileEx)
   private
-    FMasterKey,
+    FMode: Byte;
+    FMasterStrong: Boolean;
+    FMasterKey: AnsiString;
     FMasterKeyHash: AnsiString;
+  private
+    procedure ConvertStore;
+    procedure UpdateMasterKey(var MasterKey: AnsiString; var MasterKeyHash: AnsiString);
   public
     constructor Create(const AFileName: String); reintroduce;
   public
@@ -54,10 +58,6 @@ type
     constructor Create; reintroduce;
   end;
 
-
-function Encode(MasterKey, Data: AnsiString): AnsiString;
-function Decode(MasterKey, Data: AnsiString): AnsiString;
-
 procedure InitPasswordStore;
 
 var
@@ -66,14 +66,26 @@ var
 implementation
 
 uses
-  LCLProc, LCLType, Base64, BlowFish, md5, uShowMsg, uGlobsPaths, uLng, uDebug;
+  LCLType, Base64, BlowFish, MD5, HMAC, SCRYPT, SHA3_512, Hash,
+  DCPrijndael, uShowMsg, uGlobsPaths, uLng, uDebug, uRandom;
+
+const
+  SCRYPT_N = 16384;
+  SCRYPT_R = 8;
+  SCRYPT_P = 1;
+
+const
+  AES_OFFS = 12; // (56 - 32) / 2
+  KEY_SIZE = SizeOf(TBlowFishKey);
+  MAC_SIZE = SizeOf(TSHA3_256Digest);
+  BUF_SIZE = KEY_SIZE + MAC_SIZE;
 
 type
   TBlowFishKeyRec = record
     dwSize: LongWord;
     case Boolean of
-      True: (bBlowFishKey: TBlowFishKey);
-      False: (cBlowFishKey: array [0..SizeOf(TBlowFishKey)] of AnsiChar);
+      True:  (bBlowFishKey: TBlowFishKey);
+      False: (cBlowFishKey: array [0..KEY_SIZE - 1] of AnsiChar);
   end;
 
 function Encode(MasterKey, Data: AnsiString): AnsiString;
@@ -97,9 +109,9 @@ begin
     Base64EncodingStream.Flush;
     Result:= StringStream.DataString;
   finally
-    FreeThenNil(BlowFishEncryptStream);
-    FreeThenNil(Base64EncodingStream);
-    FreeThenNil(StringStream);
+    FreeAndNil(BlowFishEncryptStream);
+    FreeAndNil(Base64EncodingStream);
+    FreeAndNil(StringStream);
   end;
 end;
 
@@ -122,21 +134,197 @@ begin
     BlowFishDeCryptStream:= TBlowFishDeCryptStream.Create(BlowFishKeyRec.bBlowFishKey, BlowFishKeyRec.dwSize, Base64DecodingStream);
     BlowFishDeCryptStream.Read(PAnsiChar(Result)^, Base64DecodingStream.Size);
   finally
-    FreeThenNil(BlowFishDeCryptStream);
-    FreeThenNil(Base64DecodingStream);
-    FreeThenNil(StringStream);
+    FreeAndNil(BlowFishDeCryptStream);
+    FreeAndNil(Base64DecodingStream);
+    FreeAndNil(StringStream);
+  end;
+end;
+
+function hmac_sha3_512(AKey: PByte; AKeyLength: Integer; AMessage: AnsiString): AnsiString;
+var
+  HashDesc: PHashDesc;
+  Buffer: THashDigest;
+  Context: THMAC_Context;
+begin
+  HashDesc:= FindHash_by_ID(_SHA3_512);
+  hmac_init({%H-}Context, HashDesc, AKey, AKeyLength);
+  hmac_update(Context, Pointer(AMessage), Length(AMessage));
+  hmac_final(Context, {%H-}Buffer);
+  SetLength(Result, HashDesc^.HDigestlen);
+  Move(Buffer[0], Result[1], HashDesc^.HDigestlen);
+end;
+
+function EncodeStrong(Mode: Byte; MasterKey, Data: AnsiString): AnsiString;
+var
+  Salt, Hash: AnsiString;
+  StringStream: TStringStream = nil;
+  Buffer: array[0..BUF_SIZE - 1] of Byte;
+  BlowFishKey: TBlowFishKey absolute Buffer;
+  BlowFishEncryptStream: TBlowFishEncryptStream = nil;
+begin
+  // Generate random salt
+  SetLength(Salt, SizeOf(TSHA3_256Digest));
+  Random(PByte(Salt), SizeOf(TSHA3_256Digest));
+  // Generate encryption key
+  scrypt_kdf(Pointer(MasterKey), Length(MasterKey), Pointer(Salt), Length(Salt),
+             SCRYPT_N, SCRYPT_R, SCRYPT_P, {%H-}Buffer[0], SizeOf(Buffer));
+  // Encrypt password using encryption key
+  StringStream:= TStringStream.Create(EmptyStr);
+  try
+    BlowFishEncryptStream:= TBlowFishEncryptStream.Create(BlowFishKey, SizeOf(TBlowFishKey), StringStream);
+    try
+      BlowFishEncryptStream.Write(PAnsiChar(Data)^, Length(Data));
+    finally
+      BlowFishEncryptStream.Free;
+    end;
+    Result:= StringStream.DataString;
+  finally
+    StringStream.Free;
+  end;
+  if (Mode = 1) then
+  begin
+    with TDCP_rijndael.Create(nil) do
+    begin
+      Data:= Copy(Result, 1, Length(Result));
+      Init(Buffer[AES_OFFS], GetMaxKeySize, nil);
+      Encrypt(PAnsiChar(Data)^, Pointer(Result)^, Length(Data));
+      Free;
+    end;
+  end;
+  // Calculate password hash message authentication code
+  Hash := hmac_sha3_512(@Buffer[KEY_SIZE], MAC_SIZE, Result);
+  // Calcuate result base64 encoded string
+  Result := EncodeStringBase64(Salt + Result + Copy(Hash, 1, 8));
+end;
+
+function DecodeStrong(Mode: Byte; MasterKey, Data: AnsiString): AnsiString;
+var
+  Salt, Hash: AnsiString;
+  StringStream: TStringStream = nil;
+  Buffer: array[0..BUF_SIZE - 1] of Byte;
+  BlowFishKey: TBlowFishKey absolute Buffer;
+  BlowFishDeCryptStream: TBlowFishDeCryptStream = nil;
+begin
+  Data:= DecodeStringBase64(Data);
+  Hash:= Copy(Data, Length(Data) - 7, 8);
+  Data:= Copy(Data, 1, Length(Data) - 8);
+  Salt:= Copy(Data, 1, SizeOf(TSHA3_256Digest));
+  Data:= Copy(Data, SizeOf(TSHA3_256Digest) + 1, MaxInt);
+  // Generate encryption key
+  scrypt_kdf(Pointer(MasterKey), Length(MasterKey), Pointer(Salt), Length(Salt),
+             SCRYPT_N, SCRYPT_R, SCRYPT_P, {%H-}Buffer[0], SizeOf(Buffer));
+  // Verify password using hash message authentication code
+  Salt:= hmac_sha3_512(@Buffer[KEY_SIZE], MAC_SIZE, Data);
+  if StrLComp(Pointer(Hash), Pointer(Salt), 8) <> 0 then
+    Exit(EmptyStr);
+  // Decrypt password using encryption key
+  SetLength(Result, Length(Data));
+  if (Mode = 1) then
+  begin
+    with TDCP_rijndael.Create(nil) do
+    begin
+      Init(Buffer[AES_OFFS], GetMaxKeySize, nil);
+      Decrypt(PAnsiChar(Data)^, Pointer(Result)^, Length(Data));
+      Data:= Copy(Result, 1, Length(Result));
+      Free;
+    end;
+  end;
+  StringStream:= TStringStream.Create(Data);
+  try
+    BlowFishDeCryptStream:= TBlowFishDeCryptStream.Create(BlowFishKey, SizeOf(TBlowFishKey), StringStream);
+    try
+      BlowFishDeCryptStream.Read(PAnsiChar(Result)^, Length(Result));
+    finally
+      BlowFishDeCryptStream.Free;
+    end;
+  finally
+    StringStream.Free;
   end;
 end;
 
 { TPasswordStore }
 
+procedure TPasswordStore.ConvertStore;
+var
+  I, J: Integer;
+  Password: String;
+  Sections, Strings: TStringList;
+begin
+  if ReadOnly then Exit;
+  Strings:= TStringList.Create;
+  Sections:= TStringList.Create;
+  try
+    CacheUpdates:= True;
+    ReadSections(Sections);
+    for I:= 0 to Sections.Count - 1 do
+    begin
+      if not SameText(Sections[I], 'General') then
+      begin
+        ReadSectionValues(Sections[I], Strings);
+        for J:= 0 to Strings.Count - 1 do
+        begin
+          Password:= Decode(FMasterKey, Strings.ValueFromIndex[J]);
+          Password:= EncodeStrong(FMode, FMasterKey, Password);
+          WriteString(Sections[I], Strings.Names[J], Password);
+        end;
+      end;
+    end;
+    FMasterStrong:= True;
+    FMasterKeyHash:= EmptyStr;
+    UpdateMasterKey(FMasterKey, FMasterKeyHash);
+    WriteString('General', 'MasterKey', FMasterKeyHash);
+    try
+      CacheUpdates:= False;
+    except
+      on E: Exception do msgError(E.Message);
+    end;
+  finally
+    Strings.Free;
+    Sections.Free;
+  end;
+end;
+
+procedure TPasswordStore.UpdateMasterKey(var MasterKey: AnsiString; var
+  MasterKeyHash: AnsiString);
+const
+  RAND_SIZE = 16;
+var
+  Hash: TMD5Digest;
+  Randata: AnsiString;
+begin
+  if not FMasterStrong then
+  begin
+    MasterKeyHash:= MD5Print(MD5String(MasterKey));
+    MasterKeyHash:= Encode(MasterKey, MasterKeyHash);
+  end
+  else begin
+    if Length(FMasterKeyHash) = 0 then
+    begin
+      SetLength(Randata, RAND_SIZE);
+      Random(PByte(Randata), RAND_SIZE);
+      MasterKeyHash:= '!' + IntToStr(FMode) + EncodeStrong(FMode, MasterKey, Randata);
+    end
+    else begin
+      FMode:= StrToIntDef(Copy(FMasterKeyHash, 2, 1), FMode);
+      Randata:= DecodeStrong(FMode, MasterKey, Copy(FMasterKeyHash, 3, MaxInt));
+      if Length(Randata) < RAND_SIZE then
+        MasterKeyHash:= EmptyStr
+      else begin
+        MasterKeyHash:= FMasterKeyHash;
+      end;
+    end;
+  end;
+end;
+
 constructor TPasswordStore.Create(const AFileName: String);
 begin
   inherited Create(AFileName);
 
+  FMode:= 1;
   CacheUpdates:= False;
   if ReadOnly then DCDebug('Read only password store!');
   FMasterKeyHash:= ReadString('General', 'MasterKey', EmptyStr);
+  FMasterStrong:= (Length(FMasterKeyHash) = 0) or (FMasterKeyHash[1] = '!');
 end;
 
 function TPasswordStore.HasMasterKey: Boolean;
@@ -154,18 +342,18 @@ begin
   if not ShowInputQuery(rsMsgMasterPassword, rsMsgMasterPasswordEnter, True, MasterKey) then
     Exit;
   if Length(MasterKey) = 0 then Exit;
-  MasterKeyHash:= MD5Print(MD5String(MasterKey));
-  MasterKeyHash:= Encode(MasterKey, MasterKeyHash);
+  UpdateMasterKey(MasterKey, MasterKeyHash);
   if FMasterKeyHash = EmptyStr then
     begin
-      FMasterKeyHash:= MasterKeyHash;
       FMasterKey:= MasterKey;
+      FMasterKeyHash:= MasterKeyHash;
       WriteString('General', 'MasterKey', FMasterKeyHash);
       Result:= True;
     end
   else if SameText(FMasterKeyHash, MasterKeyHash) then
     begin
       FMasterKey:= MasterKey;
+      if not FMasterStrong then ConvertStore;
       Result:= True;
     end
   else
@@ -182,7 +370,11 @@ begin
   Result:= False;
   if ReadOnly then Exit;
   if CheckMasterKey = False then Exit;
-  Data:= Encode(FMasterKey, Password);
+  if not FMasterStrong then
+    Data:= Encode(FMasterKey, Password)
+  else begin
+    Data:= EncodeStrong(FMode, FMasterKey, Password)
+  end;
   if Length(Data) = 0 then raise EEncryptDecryptFailed.Create;
   try
     WriteString(Prefix + '_' + Name, Connection, Data);
@@ -201,7 +393,11 @@ begin
   if CheckMasterKey = False then Exit;
   Data:= ReadString(Prefix + '_' + Name, Connection, Data);
   if Length(Data) = 0 then Exit;
-  Password:= Decode(FMasterKey, Data);
+  if not FMasterStrong then
+    Password:= Decode(FMasterKey, Data)
+  else begin
+    Password:= DecodeStrong(FMode, FMasterKey, Data)
+  end;
   if Length(Password) = 0 then raise EEncryptDecryptFailed.Create;
   Result:= True;
 end;
@@ -237,7 +433,7 @@ begin
 end;
 
 finalization
-  FreeThenNil(PasswordStore);
+  FreeAndNil(PasswordStore);
 
 end.
 

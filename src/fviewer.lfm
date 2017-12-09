@@ -263,11 +263,12 @@ object frmViewer: TfrmViewer
   OnClose = frmViewerClose
   OnCreate = FormCreate
   OnDestroy = FormDestroy
+  OnKeyPress = FormKeyPress
   OnResize = FormResize
   OnShow = FormShow
   SessionProperties = 'Height;Width;Left;Top;WindowState'
   ShowInTaskBar = stAlways
-  LCLVersion = '1.6.4.0'
+  LCLVersion = '1.8.0.4'
   object pnlFolder: TPanel
     Left = 179
     Height = 433
@@ -367,6 +368,7 @@ object frmViewer: TfrmViewer
       TabOrder = 0
       OnMouseEnter = sboxImageMouseEnter
       OnMouseLeave = sboxImageMouseLeave
+      OnMouseMove = sboxImageMouseMove
       object Image: TImage
         Left = 56
         Height = 288
@@ -1418,6 +1420,7 @@ object frmViewer: TfrmViewer
         Caption = 'Slide Show'
         ClientHeight = 27
         ClientWidth = 135
+        ChildSizing.LeftRightSpacing = 6
         TabOrder = 3
         Visible = False
         object seTimeShow: TSpinEdit

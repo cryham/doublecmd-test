@@ -3,7 +3,7 @@
     -------------------------------------------------------------------------
     Creates Total Commander fake window (some plugins don't work without it)
 
-    Copyright (C) 2009-2016 Alexander Koblov (alexx2000@mail.ru)
+    Copyright (C) 2009-2017 Alexander Koblov (alexx2000@mail.ru)
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -40,7 +40,7 @@ uses
   Windows, Classes,
 
   //DC
-  uFormCommands, KASToolItems, KASToolBar;
+  DCXmlConfig, uFormCommands, KASToolItems, KASToolBar;
 
 const
   TCCONFIG_MAINBAR_NOTPRESENT = ':-<#/?*+*?\#>-:';
@@ -69,7 +69,7 @@ function GetTCEquivalentCommandToDCCommand(DCCommand: string; var TCIndexOfComma
 function GetTCIconFromDCIconAndCreateIfNecessary(const DCIcon: string): string;
 function GetTCEquivalentCommandIconToDCCommandIcon(DCIcon: string; TCIndexOfCommand: integer): string;
 procedure ExportDCToolbarsToTC(Toolbar: TKASToolbar; Barfilename: string; FlushExistingContent, FlagNeedToUpdateConfigIni: boolean);
-procedure ImportTCToolbarsToDC(Barfilename: string; UpperToolItem: TKASToolItem; Toolbar: TKASToolbar; WhereToImport: integer; FFormCommands: IFormCommands);
+procedure ConvertTCToolbarToDCXmlConfig(sTCBarFilename: string; ADCXmlConfig:TXmlConfig);
 
 implementation
 
@@ -662,7 +662,7 @@ begin
   }
   //SendMessage(hMainWindow, uiMsg, wParam, lParam);
 
-  if (uiMsg = WM_SETTINGCHANGE) and (lParam <> 0) and (StrComp('Environment', PAnsiChar(lParam)) = 0) then
+  if (uiMsg = WM_SETTINGCHANGE) and (lParam <> 0) and (StrComp('Environment', {%H-}PAnsiChar(lParam)) = 0) then
   begin
     UpdateEnvironment;
     DCDebug('WM_SETTINGCHANGE:Environment');
@@ -766,13 +766,19 @@ end;
 // Routine to replace %VARIABLE% of TC path by the actual absolute path
 // This is useful when we "import" TC related path to place them in absolute format this way DC refer them correctly after import.
 function ReplaceTCEnvVars(const sText: string): string;
+var
+  sAbsoluteTotalCommanderExecutableFilename, sAbsoluteTotalCommanderConfigFilename: string;
 begin
-  Result := StringReplace(sText, '%COMMANDER_INI%', gTotalCommanderConfigFilename, [rfIgnoreCase]);
-  Result := StringReplace(Result, '%COMMANDER_PATH%', ExcludeTrailingPathDelimiter(ExtractFilePath(gTotalCommanderExecutableFilename)), [rfIgnoreCase]);
-  Result := StringReplace(Result, '%COMMANDER_EXE%', ExcludeTrailingPathDelimiter(ExtractFilePath(gTotalCommanderExecutableFilename)), [rfIgnoreCase]);
-  Result := StringReplace(Result, '%COMMANDER_DRIVE%', ExcludeTrailingPathDelimiter(ExtractFileDrive(gTotalCommanderExecutableFilename)), [rfIgnoreCase]);
+  sAbsoluteTotalCommanderExecutableFilename := mbExpandFileName(gTotalCommanderExecutableFilename);
+  sAbsoluteTotalCommanderConfigFilename := mbExpandFileName(gTotalCommanderConfigFilename);
+
+  Result := StringReplace(sText, '%COMMANDER_INI%\..', ExcludeTrailingPathDelimiter(ExtractFilePath(sAbsoluteTotalCommanderConfigFilename)),[rfIgnoreCase]);
+  Result := StringReplace(Result, '%COMMANDER_INI%', sAbsoluteTotalCommanderConfigFilename, [rfIgnoreCase]);
+  Result := StringReplace(Result, '%COMMANDER_PATH%', ExcludeTrailingPathDelimiter(ExtractFilePath(sAbsoluteTotalCommanderExecutableFilename)), [rfIgnoreCase]);
+  Result := StringReplace(Result, '%COMMANDER_EXE%', ExcludeTrailingPathDelimiter(ExtractFilePath(sAbsoluteTotalCommanderExecutableFilename)), [rfIgnoreCase]);
+  Result := StringReplace(Result, '%COMMANDER_DRIVE%', ExcludeTrailingPathDelimiter(ExtractFileDrive(sAbsoluteTotalCommanderExecutableFilename)), [rfIgnoreCase]);
   if utf8pos(UTF8UpperCase('wcmicons.dll'), UTF8UpperCase(Result)) = 1 then
-    Result := StringReplace(Result, 'wcmicons.dll', ExtractFilePath(gTotalCommanderExecutableFilename) + 'wcmicons.dll', [rfIgnoreCase]);
+    Result := StringReplace(Result, 'wcmicons.dll', ExtractFilePath(sAbsoluteTotalCommanderExecutableFilename) + 'wcmicons.dll', [rfIgnoreCase]);
 end;
 
 { GetTotalCommandeMainBarFilename }
@@ -783,12 +789,12 @@ var
   TCMainConfigFile: TIniFileEx;
 begin
   Result := '';
-  if mbFileExists(gTotalCommanderConfigFilename) then
+  if mbFileExists(mbExpandFileName(gTotalCommanderConfigFilename)) then
   begin
-    TCMainConfigFile := TIniFileEx.Create(gTotalCommanderConfigFilename);
+    TCMainConfigFile := TIniFileEx.Create(mbExpandFileName(gTotalCommanderConfigFilename));
     try
       Result :=
-        ReplaceTCEnvVars(ConvertTCStringToString(TCMainConfigFile.ReadString(TCCONFIG_BUTTONBAR_SECTION, TCCONFIG_BUTTONBAR_SECTION, TCCONFIG_MAINBAR_NOTPRESENT)));
+        mbExpandFileName(ReplaceTCEnvVars(ConvertTCStringToString(TCMainConfigFile.ReadString(TCCONFIG_BUTTONBAR_SECTION, TCCONFIG_BUTTONBAR_SECTION, TCCONFIG_MAINBAR_NOTPRESENT))));
 
       //While we're there, we'll get the button height.
       TCIconSize := TCMainConfigFile.ReadInteger(TCCONFIG_BUTTONBAR_SECTION, TCCONFIG_BUTTONHEIGHT, 32 + 5);
@@ -801,8 +807,8 @@ begin
     //Let's see if there is such file there.
     if Result = TCCONFIG_MAINBAR_NOTPRESENT then
     begin
-      if mbFileExists(IncludeTrailingPathDelimiter(ExtractFilePath(gTotalCommanderExecutableFilename)) + 'DEFAULT.bar') then
-        Result := IncludeTrailingPathDelimiter(ExtractFilePath(gTotalCommanderExecutableFilename)) + 'DEFAULT.bar';
+      if mbFileExists(IncludeTrailingPathDelimiter(ExtractFilePath(mbExpandFileName(gTotalCommanderExecutableFilename))) + 'DEFAULT.bar') then
+        Result := IncludeTrailingPathDelimiter(ExtractFilePath(mbExpandFileName(gTotalCommanderExecutableFilename))) + 'DEFAULT.bar';
     end;
   end;
 end;
@@ -844,14 +850,14 @@ end;
 function areTCRelatedPathsAndFilesDetected: boolean;
 begin
   Result := False;
-  if mbFileExists(gTotalCommanderExecutableFilename) then
+  if mbFileExists(mbExpandFileName(gTotalCommanderExecutableFilename)) then
   begin
-    if mbFileExists(gTotalCommanderConfigFilename) then
+    if mbFileExists(mbExpandFileName(gTotalCommanderConfigFilename)) then
     begin
       sTotalCommanderMainbarFilename := GetTotalCommandeMainBarFilename;
       if mbFileExists(sTotalCommanderMainbarFilename) then
       begin
-        if mbDirectoryExists(ExcludeTrailingPathDelimiter(gTotalCommanderToolbarPath)) then
+        if mbDirectoryExists(ExcludeTrailingPathDelimiter(mbExpandFileName(gTotalCommanderToolbarPath))) then
         begin
           Result := True;
         end
@@ -983,7 +989,7 @@ begin
       if Result = '' then
         Result := 'empty';
 
-      Result := gTotalCommanderToolbarPath + PathDelim + Result;
+      Result := IncludeTrailingPathDelimiter(mbExpandFileName(gTotalCommanderToolbarPath)) + Result;
 
       //Make sure to use a filename not already generated.
       Suffix := '';
@@ -1137,7 +1143,7 @@ var
 begin
   ExportationDateTime := now;
 
-  TargetBarFilenamePrefix := IncludeTrailingPathDelimiter(gTotalCommanderToolbarPath) + rsFilenameExportedTCBarPrefix;
+  TargetBarFilenamePrefix := IncludeTrailingPathDelimiter(mbExpandFilename(gTotalCommanderToolbarPath)) + rsFilenameExportedTCBarPrefix;
   TCToolBarIndex := 1;
 
   TCListOfCreatedTCIconFilename := TStringList.Create;
@@ -1180,7 +1186,7 @@ begin
   //If we've been asked to play in the Wincmd.ini file, let's make sure to save the main bar filename.
   if FlagNeedToUpdateConfigIni then
   begin
-    TCMainConfigFile := TIniFileEx.Create(gTotalCommanderConfigFilename, fmOpenReadWrite);
+    TCMainConfigFile := TIniFileEx.Create(mbExpandFileName(gTotalCommanderConfigFilename), fmOpenReadWrite);
     try
       //2014-11-27:It looks like, will with TC 8.50B12, the main bar file cannot have unicode in the name???
       //It "basically" works but have some annoying problem from here to thre.
@@ -1195,42 +1201,29 @@ begin
   end;
 end;
 
-{ ImportTCToolbarsToDC }
-// Will import the TC toolbar file named "Barfilename" into either:
-//   -a TKASToolbar referenced by "Toolbar" (when "WhereToImport"=IMPORT_TO_BAR)
-//   -a subtoolbar of a "TKASToolItem" referenced by "UpperToolItem" (when "WhereToImport"=IMPORT_TO_ITEM)
+{ ConvertTCToolbarToDCXmlConfig }
+// Will import the TC toolbar file named "sBarFilename" into either our "AToolbarConfig" XML structure.
 // If the TC toolbar have buttons pointing other TC toolbar file, the routine will import them as well
 //   and organize something similar in the tree structure of subtoolbar DC is using.
 // Obviously to avoid keeps cycling in round if "Toolbar A points toolbar B and toolbar B points toolbar A",
 //   this import routine will not re-importe a toolbar already imported.
-procedure ImportTCToolbarsToDC(Barfilename: string; UpperToolItem: TKASToolItem; Toolbar: TKASToolbar; WhereToImport: integer; FFormCommands: IFormCommands);
-const
-  IMPORT_TO_BAR = 0;
-  IMPORT_TO_ITEM = 1;
+procedure ConvertTCToolbarToDCXmlConfig(sTCBarFilename: string; ADCXmlConfig:TXmlConfig);
 var
-  TCToolbarFilenameList: TStringList; //To hold the TC toolbarfile already imported to don't re-import more than once a toolbar file already imported.
+  TCToolbarFilenameList: TStringList; //To hold the TC toolbarfile already imported so we don't re-import more than once a toolbar file already imported.
   TCIndexOfCommand: integer;
   DCListOfParameters: TStringList;
+  ToolBarNode, RowNode: TXmlNode;
 
-  procedure RecursiveIncorporateTCBarfile(Barfilename: string; UpperToolItem: TKASToolItem; Toolbar: TKASToolbar; WhereToImport: integer);
+  // WARNING: "RecursiveIncorporateTCBarfile" is recursive and may call itself!
+  procedure RecursiveIncorporateTCBarfile(Barfilename: string; InsertionNode:TXmlNode);
   var
     TCBarConfigFile: TIniFileEx;
     IndexButton: integer;
     sButtonName, sCmdName, sHintName, sParamValue, sStartingPath: string;
-    SubToolItem: TKASToolItem = nil;
-
-    procedure AddToolItem;
-    begin
-      case WhereToImport of
-        IMPORT_TO_BAR: ToolBar.AddButton(SubToolItem);
-        IMPORT_TO_ITEM: TKASMenuItem(UpperToolItem).SubItems.Add(SubToolItem);
-      end;
-    end;
-
+    SubMenuNode, CommandNode, MenuItemsNode: TXmlNode;
   begin
     if mbFileExists(Barfilename) then
     begin
-      DCListOfParameters := TStringList.Create;
       TCBarConfigFile := TIniFileEx.Create(Barfilename);
       try
         IndexButton := 1;
@@ -1242,8 +1235,7 @@ var
             if sButtonName = '' then
             begin
               //We have a separator bar!
-              SubToolItem := TKASSeparatorItem.Create;
-              AddToolItem;
+              CommandNode := ADCXmlConfig.AddNode(InsertionNode, 'Separator');
             end
             else
             begin
@@ -1261,57 +1253,57 @@ var
                 if TCIndexOfCommand <> -1 then
                 begin
                   // If we have an equivalent, we add it as the equivalent internal command.
-                  SubToolItem := TKASCommandItem.Create(FFormCommands);
-                  TKASCommandItem(SubToolItem).Command := sCmdName;
-                  TKASCommandItem(SubToolItem).Params := GetArrayFromStrings(DCListOfParameters);
-                  if sHintName <> '' then TKASCommandItem(SubToolItem).Hint := sHintName else TKASCommandItem(SubToolItem).Hint := FFormCommands.GetCommandCaption(sCmdName, cctLong);
-                  TKASCommandItem(SubToolItem).Icon := UTF8LowerCase(TKASCommandItem(SubToolItem).Command);
+                  CommandNode := ADCXmlConfig.AddNode(InsertionNode, 'Command');
+                  ADCXmlConfig.AddValue(CommandNode, 'ID', GuidToString(DCGetNewGUID));
+                  ADCXmlConfig.AddValue(CommandNode, 'Icon', UTF8LowerCase(sCmdName));
+                  ADCXmlConfig.AddValue(CommandNode, 'Command', sCmdName);
+                  ADCXmlConfig.AddValue(CommandNode, 'Hint', sHintName);
                 end
                 else
                 begin
                   // If we don't have an equivalent, we add is as an external command and we will write info to mean it.
-                  SubToolItem := TKASProgramItem.Create;
-                  TKASProgramItem(SubToolItem).Icon := sButtonName;
-                  TKASProgramItem(SubToolItem).Command := rsNoEquivalentInternalCommand + ' - ' + sCmdName;
-                  TKASProgramItem(SubToolItem).Params := '';
-                  TKASProgramItem(SubToolItem).StartPath := '';
-                  TKASProgramItem(SubToolItem).Hint := rsNoEquivalentInternalCommand;
+                  CommandNode := ADCXmlConfig.AddNode(InsertionNode, 'Program');
+                  ADCXmlConfig.AddValue(CommandNode, 'ID', GuidToString(DCGetNewGUID));
+                  ADCXmlConfig.AddValue(CommandNode, 'Icon', '???: '+sButtonName); // ???: will result into the question mark icon so it's easy for user to see that one did not work.
+                  ADCXmlConfig.AddValue(CommandNode, 'Command', rsNoEquivalentInternalCommand + ' - ' + sCmdName);
+                  ADCXmlConfig.AddValue(CommandNode, 'Params',  '');
+                  ADCXmlConfig.AddValue(CommandNode, 'StartPath',  '');
+                  ADCXmlConfig.AddValue(CommandNode, 'Hint', rsNoEquivalentInternalCommand);
                 end;
-
-                AddToolItem;
               end
               else
               begin
                 if UTF8UpperCase(ExtractFileExt(sCmdName)) = '.BAR' then
                 begin
-                  //Since with TC we could have toolbar recursively pointing themselves, we need to make sure we'll not get lost cycling throught the same ones over and over.
+                  //Since with TC we could have toolbars recursively pointing themselves, we need to make sure we'll not get lost cycling throught the same ones over and over.
                   if TCToolbarFilenameList.IndexOf(UTF8UpperCase(sCmdName)) = -1 then
                   begin
                     //We have a subtoolbar!
                     TCToolbarFilenameList.Add(UTF8UpperCase(sCmdName));
-                    SubToolItem := TKASMenuItem.Create;
-                    TKASMenuItem(SubToolItem).Icon := sButtonName;
+                    SubMenuNode := ADCXmlConfig.AddNode(InsertionNode, 'Menu');
+                    ADCXmlConfig.AddValue(SubMenuNode, 'ID', GuidToString(DCGetNewGUID));
                     if sHintName <> '' then
-                      TKASMenuItem(SubToolItem).Hint := sHintName
+                      ADCXmlConfig.AddValue(SubMenuNode, 'Hint', sHintName)
                     else
-                      TKASMenuItem(SubToolItem).Hint := 'Sub menu';
-                    AddToolItem;
-                    RecursiveIncorporateTCBarfile(sCmdName, SubToolItem, nil, IMPORT_TO_ITEM);
+                      ADCXmlConfig.AddValue(SubMenuNode, 'Hint', 'Sub menu');
+                    ADCXmlConfig.AddValue(SubMenuNode, 'Icon', sButtonName);
+                    MenuItemsNode := ADCXmlConfig.AddNode(SubMenuNode, 'MenuItems');
+                    RecursiveIncorporateTCBarfile(sCmdName, MenuItemsNode);
                   end;
                 end
                 else
                 begin
                   //We have a "Program Item"
-                  SubToolItem := TKASProgramItem.Create;
-                  TKASProgramItem(SubToolItem).Icon := sButtonName;
-                  TKASProgramItem(SubToolItem).Command := sCmdName;
-                  TKASProgramItem(SubToolItem).Params := sParamValue;
-                  TKASProgramItem(SubToolItem).StartPath := sStartingPath;
+                  CommandNode := ADCXmlConfig.AddNode(InsertionNode, 'Program');
+                  ADCXmlConfig.AddValue(CommandNode, 'ID', GuidToString(DCGetNewGUID));
+                  ADCXmlConfig.AddValue(CommandNode, 'Icon', sButtonName);
+                  ADCXmlConfig.AddValue(CommandNode, 'Command', sCmdName);
+                  ADCXmlConfig.AddValue(CommandNode, 'Params',  sParamValue);
+                  ADCXmlConfig.AddValue(CommandNode, 'StartPath',  sStartingPath);
                   if sHintName <> '' then
-                    TKASProgramItem(SubToolItem).Hint := sHintName
+                    ADCXmlConfig.AddValue(CommandNode, 'Hint', sHintName)
                   else
-                    TKASProgramItem(SubToolItem).Hint := 'Program';
-                  AddToolItem;
+                    ADCXmlConfig.AddValue(CommandNode, 'Hint', 'Program');
                 end;
               end;
             end;
@@ -1320,7 +1312,6 @@ var
         until sButtonName = TCCONFIG_MAINBAR_NOTPRESENT;
       finally
         TCBarConfigFile.Free;
-        DCListOfParameters.Free;
       end;
     end;
   end;
@@ -1328,7 +1319,16 @@ var
 begin
   TCToolbarFilenameList := TStringList.Create;
   try
-    RecursiveIncorporateTCBarfile(Barfilename, UpperToolItem, Toolbar, WhereToImport);
+    ToolBarNode := ADCXmlConfig.FindNode(ADCXmlConfig.RootNode, 'Toolbars/MainToolbar', True);
+    ADCXmlConfig.ClearNode(ToolBarNode);
+    RowNode := ADCXmlConfig.AddNode(ToolBarNode, 'Row');
+
+    DCListOfParameters := TStringList.Create;
+    try
+      RecursiveIncorporateTCBarfile(sTCBarFilename, RowNode);
+    finally
+      DCListOfParameters.Free;
+    end;
   finally
     TCToolbarFilenameList.Free;
   end;

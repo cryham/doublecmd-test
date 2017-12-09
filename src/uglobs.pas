@@ -12,7 +12,7 @@
 
    Copyright (C) 2008  Dmitry Kolomiets (B4rr4cuda@rambler.ru)
    Copyright (C) 2008  Vitaly Zotov (vitalyzotov@mail.ru)
-   Copyright (C) 2006-2016 Alexander Koblov (alexx2000@mail.ru)
+   Copyright (C) 2006-2017 Alexander Koblov (alexx2000@mail.ru)
 
 }
 
@@ -124,7 +124,7 @@ type
 
 const
   { Default hotkey list version number }
-  hkVersion = 41;
+  hkVersion = 42;
   // 40 - In "Main" context, added the "Ctrl+Shift+F7" for "cm_AddNewSearch".
   //      In "Find Files" context, changed "cm_Start" that was "Enter" for "F9".
   //      In "Find Files" context, added "Alt+F7" as a valid alternative for "cm_PageStandard".
@@ -251,6 +251,7 @@ var
   gUpdatedFilesPosition: TUpdatedFilesPosition;
   gLynxLike:Boolean;
   gFirstTextSearch: Boolean;
+  gExtraLineSpan: Integer;
 
   { Mouse }
   gMouseSelectionEnabled: Boolean;
@@ -367,6 +368,7 @@ var
   gIconsSize,
   gIconsSizeNew : Integer;
   gDiskIconsSize : Integer;
+  gDiskIconsAlpha : Integer;
   gFiOwnDCIcon : PtrInt;
   gIconsExclude: Boolean;
   gIconsExcludeDirs: String;
@@ -497,11 +499,7 @@ var
   gImagePaintMode: String;
   gImagePaintWidth,
   gColCount,
-  gViewerMode,
-  gViewerTop,
-  gViewerLeft,
-  gViewerWidth,
-  gViewerHeight: Integer;
+  gViewerMode: Integer;
   gImagePaintColor,
   gBookBackgroundColor,
   gBookFontColor: TColor;
@@ -984,9 +982,9 @@ begin
                       'Esc','',''],'cm_ExitViewer');
 
 
-      AddIfNotExists(['F'        ,'','',
-                      'Ctrl+F'   ,'','',
-                      'F7'       ,'',''],'cm_Find'); // , ['F'], []);
+      AddIfNotExists(['F'             ,'','',
+                      SmkcSuper + 'F' ,'','',
+                      'F7'            ,'',''],'cm_Find'); // , ['F'], []);
 
       AddIfNotExists(['F3'],[],'cm_FindNext');
       AddIfNotExists(['Shift+F3'],[],'cm_FindPrev');
@@ -1078,6 +1076,9 @@ begin
       AddIfNotExists(['Alt+4'],[],'cm_PageLoadSave');
       AddIfNotExists(['Alt+5'],[],'cm_PageResults');
       AddIfNotExists(['Alt+F4','',''],'cm_FreeFromMem');
+
+      AddIfNotExists(VK_TAB, [ssModifier], 'cm_PageNext');
+      AddIfNotExists(VK_TAB, [ssModifier, ssShift], 'cm_PagePrev');
     end;
 
   if not mbFileExists(gpCfgDir + gNameSCFile) then
@@ -1335,6 +1336,8 @@ begin
   gDriveBlackList := '';
   gDriveBlackListUnmounted := False;
 
+  { File views page }
+  gExtraLineSpan := 2;
   { Brief view page }
   gBriefViewFixedCount := 2;
   gBriefViewFixedWidth := 100;
@@ -1588,6 +1591,7 @@ begin
   gIconsSize := 32;
   gIconsSizeNew := gIconsSize;
   gDiskIconsSize := 16;
+  gDiskIconsAlpha := 50;
   gIconsExclude := False;
   gIconsExcludeDirs := EmptyStr;
   gPixelsPerInch := 96;
@@ -1620,10 +1624,6 @@ begin
   gBookFontColor := clWhite;
   gTextPosition:= 0;
   gViewerMode:= 0;
-  gViewerTop:=0;
-  gViewerLeft:=0;
-  gViewerWidth:=Screen.WorkAreaWidth;
-  gViewerHeight:=Screen.WorkAreaHeight;
 
   { Editor }
   gEditWaitTime := 2000;
@@ -2320,6 +2320,7 @@ begin
           gBriefViewMode := TBriefViewMode(GetValue(SubNode, 'AutoSize', Integer(gBriefViewMode)));
         end;
       end;
+      gExtraLineSpan := GetValue(Node, 'ExtraLineSpan', gExtraLineSpan);
     end;
 
     { Keys page }
@@ -2510,6 +2511,7 @@ begin
       gIconOverlays := GetValue(Node, 'ShowOverlays', gIconOverlays);
       gIconsSize := GetValue(Node, 'Size', gIconsSize);
       gDiskIconsSize := GetValue(Node, 'DiskSize', gDiskIconsSize);
+      gDiskIconsAlpha := GetValue(Node, 'DiskAlpha', gDiskIconsAlpha);
       gIconsExclude := GetValue(Node, 'Exclude', gIconsExclude);
       gIconsExcludeDirs := GetValue(Node, 'ExcludeDirs', gIconsExcludeDirs);
       gPixelsPerInch := GetValue(Node, 'PixelsPerInch', gPixelsPerInch);
@@ -2554,11 +2556,6 @@ begin
       gImagePaintWidth := GetValue(Node, 'PaintWidth', gImagePaintWidth);
       gColCount    := GetValue(Node, 'NumberOfColumns', gColCount);
       gViewerMode  := GetValue(Node, 'ViewerMode'  , gViewerMode);
-      gViewerTop   := GetValue(Node, 'ViewerTop'   , gViewerTop);
-      gViewerLeft  := GetValue(Node, 'ViewerLeft'  , gViewerLeft);
-      gViewerWidth := GetValue(Node, 'ViewerWidth' , gViewerWidth);
-      gViewerHeight:= GetValue(Node, 'ViewerHeight', gViewerHeight);
-
 
       gImagePaintColor := GetValue(Node, 'PaintColor', gImagePaintColor);
       gBookBackgroundColor := GetValue(Node, 'BackgroundColor', gBookBackgroundColor);
@@ -2656,7 +2653,7 @@ begin
       gDefaultTargetPanelRightSaved := TTabsConfigLocation(GetValue(Node, 'DfltRightGoTo', Integer(gDefaultTargetPanelRightSaved)));
       gDefaultExistingTabsToKeep := TTabsConfigLocation(GetValue(Node, 'DfltKeep', Integer(gDefaultExistingTabsToKeep)));
       gFavoriteTabsSaveDirHistory := GetValue(Node, 'DfltSaveDirHistory', gFavoriteTabsSaveDirHistory);
-      gFavoriteTabsList.LastFavoriteTabsLoadedUniqueId := StringToGUID(GetValue(Node,'FavTabsLastUniqueID',GUIDtoString(GetNewUniqueID)));
+      gFavoriteTabsList.LastFavoriteTabsLoadedUniqueId := StringToGUID(GetValue(Node,'FavTabsLastUniqueID',GUIDtoString(DCGetNewGUID)));
     end;
 
     { - Other - }
@@ -2890,6 +2887,7 @@ begin
     SetValue(SubNode, 'FixedWidth', gBriefViewFixedWidth);
     SetValue(SubNode, 'FixedCount', gBriefViewFixedCount);
     SetValue(SubNode, 'AutoSize', Integer(gBriefViewMode));
+    SetValue(Node, 'ExtraLineSpan', gExtraLineSpan);
 
     { Keys page }
     Node := FindNode(Root, 'Keyboard', True);
@@ -3016,6 +3014,7 @@ begin
     SetValue(Node, 'ShowOverlays', gIconOverlays);
     SetValue(Node, 'Size', gIconsSizeNew);
     SetValue(Node, 'DiskSize', gDiskIconsSize);
+    SetValue(Node, 'DiskAlpha', gDiskIconsAlpha);
     SetValue(Node, 'Exclude', gIconsExclude);
     SetValue(Node, 'ExcludeDirs', gIconsExcludeDirs);
     SetValue(Node, 'CustomIcons', Integer(gCustomIcons));
@@ -3048,10 +3047,6 @@ begin
     SetValue(Node, 'PaintWidth', gImagePaintWidth);
     SetValue(Node, 'NumberOfColumns', gColCount);
     SetValue(Node, 'ViewerMode' , gViewerMode);
-    SetValue(Node, 'ViewerTop'  , gViewerTop);
-    SetValue(Node, 'ViewerLeft' , gViewerLeft);
-    SetValue(Node, 'ViewerWidth' , gViewerWidth);
-    SetValue(Node, 'ViewerHeight', gViewerHeight);
 
     SetValue(Node, 'PaintColor', gImagePaintColor);
     SetValue(Node, 'BackgroundColor', gBookBackgroundColor);

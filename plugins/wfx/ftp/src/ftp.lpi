@@ -15,8 +15,9 @@
     </General>
     <VersionInfo>
       <UseVersionInfo Value="True"/>
-      <MinorVersionNr Value="2"/>
-      <StringTable FileDescription="FTP WFX plugin for Double Commander" LegalCopyright="Copyright (C) 2006-2017 Alexander Koblov" ProductVersion=""/>
+      <MinorVersionNr Value="3"/>
+      <RevisionNr Value="2"/>
+      <StringTable FileDescription="FTP WFX plugin for Double Commander" LegalCopyright="Copyright (C) 2006-2017 Alexander Koblov"/>
     </VersionInfo>
     <BuildModes Count="2">
       <Item1 Name="Release" Default="True"/>
@@ -29,7 +30,7 @@
           </Target>
           <SearchPaths>
             <IncludeFiles Value="$(ProjOutDir);..\..\..\..\sdk;..\synapse"/>
-            <OtherUnitFiles Value="..\synapse;..\..\..\..\sdk"/>
+            <OtherUnitFiles Value="..\synapse;..\..\..\..\sdk;sftp"/>
             <UnitOutputDirectory Value="..\lib"/>
           </SearchPaths>
           <Conditionals Value="if (TargetCPU &lt;> 'arm') then
@@ -83,7 +84,7 @@ end;"/>
     <RunParams>
       <local>
         <FormatVersion Value="1"/>
-        <HostApplicationFilename Value="D:\totalcmd\totalcmd.exe"/>
+        <HostApplicationFilename Value="D:\Development\DC\subversion\trunk\doublecmd.exe"/>
         <LaunchingApplication PathPlusParams="\usr\X11R6\bin\xterm -T 'Lazarus Run Output' -e $(LazarusDir)\tools\runwait.sh $(TargetCmdLine)"/>
       </local>
     </RunParams>
@@ -95,7 +96,7 @@ end;"/>
         <PackageName Value="LazUtils"/>
       </Item2>
     </RequiredPackages>
-    <Units Count="5">
+    <Units Count="6">
       <Unit0>
         <Filename Value="ftp.dpr"/>
         <IsPartOfProject Value="True"/>
@@ -122,6 +123,11 @@ end;"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="FtpAdv"/>
       </Unit4>
+      <Unit5>
+        <Filename Value="sftp\sftpsend.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="SftpSend"/>
+      </Unit5>
     </Units>
   </ProjectOptions>
   <CompilerOptions>
@@ -132,7 +138,7 @@ end;"/>
     </Target>
     <SearchPaths>
       <IncludeFiles Value="$(ProjOutDir);..\..\..\..\sdk;..\synapse"/>
-      <OtherUnitFiles Value="..\synapse;..\..\..\..\sdk"/>
+      <OtherUnitFiles Value="..\synapse;..\..\..\..\sdk;sftp"/>
       <UnitOutputDirectory Value="..\lib"/>
     </SearchPaths>
     <Conditionals Value="if (TargetCPU &lt;> 'arm') then

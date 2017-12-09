@@ -3,7 +3,7 @@
    -------------------------------------------------------------------------
    Localization core unit
 
-   Copyright (C) 2007-2016 Alexander Koblov (alexx2000@mail.ru)
+   Copyright (C) 2007-2017 Alexander Koblov (alexx2000@mail.ru)
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -45,6 +45,7 @@ resourcestring
   rsMsgNewFile = 'New file';
   rsMsgDelFlDr = 'Delete %d selected files/directories?';
   rsMsgDelSel = 'Delete selected "%s"?';
+  rsMsgObjectNotExists = 'Object does not exist!';
   // 12.05.2009 - another message, when deleting to trash
   rsMsgDelFlDrT = 'Delete %d selected files/directories into trash can?';
   rsMsgDelSelT = 'Delete selected "%s" into trash can?';
@@ -129,6 +130,7 @@ resourcestring
   rsMsgErrCreateFileDirectoryExists = 'There already exists a directory named "%s".';
   rsMsgDeletePartiallyCopied = 'Delete the partially copied file ?';
   rsMsgInvalidCommandLine = 'Error in command line';
+  rsMsgCofirmUserParam = 'Confirmation of parameter';
   rsMsgAskQuoteOrNot = 'Do you want to enclose between quotes?';
   rsMsgInvalidQuoting = 'Invalid quoting';
   rsMsgErrorInContextMenuCommand = 'Error in context menu command';
@@ -168,7 +170,7 @@ resourcestring
   rsMsgHotDirSubMenuName = 'Submenu name';
   rsMsgHotDirSimpleName = '&Name:';
   rsMsgHotDirSimpleSeparator = '(separator)';
-  rsMsgHotDirSimpleMenu = 'Menu name:';
+  rsMsgHotDirSimpleMenu = 'Menu &name:';
   rsMsgHotDirSimpleEndOfMenu = '(end of sub menu)';
   rsMsgHotDirSimpleCommand = 'Command:';
   rsMsgHotDirCommandName = 'Do command';
@@ -272,6 +274,9 @@ resourcestring
   rsMnuMapNetworkDrive = 'Map Network Drive...';
   rsMnuDisconnectNetworkDrive = 'Disconnect Network Drive...';
   rsMnuCopyNetNamesToClip = 'Copy names with UNC path';
+  // for content plugins menu
+  rsMnuContentDefault = '<Default>';
+  rsMnuContentOctal = 'Octal';
   // wcx module messages
   rsMsgSelLocNextVol = 'Please select location of next volume';
   rsMsgNextVolUnpack = 'Next volume will be unpacked';
@@ -675,7 +680,7 @@ resourcestring
   // Keyboard
   rsOptLetters = 'None;Command Line;Quick Search;Quick Filter';
   // Directory hotlist
-  rsOptAddFromMainPanel = 'Add at beginning;Add at the end;Smart add';
+  rsOptAddFromMainPanel = 'Add at &beginning;Add at the end;Smart add';
   //File Associations
   rsMsgTitleExtNotInFileType = 'Extension of selected file is not in any recognized file types';
   rsMsgSekectFileType = 'Select to which file type to add extension "%s"';
@@ -697,7 +702,7 @@ resourcestring
   rsVarOtherExamples = 'Other example of what''s possible';
 
   rsVarOnlyFilename = 'Only filename';
-  rsVarPath = 'Path, with ending delimiter';
+  rsVarPath = 'Path, without ending delimiter';
   rsVarFullPath = 'Complete filename (path+filename)';
   rsVarFilenameNoExt = 'Just filename, no extension';
   rsVarOnlyExtension = 'Only file extension';
@@ -754,6 +759,7 @@ resourcestring
   rsMsgTCConfigNotFound = 'Error! Cannot find the TC configuration file:'+#$0A+'%s';
   rsMsgTCExecutableNotFound = 'Error! Cannot find the TC configuration executable:'+#$0A+'%s';
   rsMsgTCisRunning = 'Error! TC is still running but it should be closed for this operation.'+#$0A+'Close it and press OK or press CANCEL to abort.';
+  rsMsgAllDCIntCmds = 'All Double Commander internal commands';
 
   //Columns Menu
   rsMenuConfigureCustomColumns= 'Configure custom columns';

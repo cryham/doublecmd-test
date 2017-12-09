@@ -36,6 +36,10 @@ uses
   ActnList, uOSForms, uShellContextMenu, uExceptions, uFileSystemFileSource,
   uFormCommands, uHotkeyManager;
 
+{$IF DEFINED(LCLGTK2) or DEFINED(LCLQT) or DEFINED(LCLQT5)}
+  {$DEFINE FIX_DEFAULT}
+{$ENDIF}
+
 const
   HotkeysCategory = 'Find files';
 
@@ -49,6 +53,8 @@ type
     actGoToFile: TAction;
     actFeedToListbox: TAction;
     actCancelClose: TAction;
+    actPagePrev: TAction;
+    actPageNext: TAction;
     actPageResults: TAction;
     actPageLoadSave: TAction;
     actPagePlugins: TAction;
@@ -217,6 +223,9 @@ type
     procedure cbTimeToChange(Sender: TObject);
     procedure FormCloseQuery(Sender: TObject; var CanClose: boolean);
     procedure FormDestroy(Sender: TObject);
+{$IF DEFINED(FIX_DEFAULT)}
+    procedure FormKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
+{$ENDIF}
     procedure frmFindDlgClose(Sender: TObject; var {%H-}CloseAction: TCloseAction);
     procedure frmFindDlgShow(Sender: TObject);
     procedure gbDirectoriesResize(Sender: TObject);
@@ -248,6 +257,7 @@ type
     procedure ZVDateToChange(Sender: TObject);
     procedure ZVTimeFromChange(Sender: TObject);
     procedure ZVTimeToChange(Sender: TObject);
+    procedure PopupMenuFindPopup(Sender: TObject);
     procedure CancelCloseAndFreeMem;
     procedure LoadHistory;
     procedure SaveHistory;
@@ -313,6 +323,8 @@ type
     procedure cm_Edit(const {%H-}Params: array of string);
     procedure cm_GoToFile(const {%H-}Params: array of string);
     procedure cm_FeedToListbox(const {%H-}Params: array of string);
+    procedure cm_PageNext(const Params: array of string);
+    procedure cm_PagePrev(const Params: array of string);
     procedure cm_PageStandard(const {%H-}Params: array of string);
     procedure cm_PageAdvanced(const {%H-}Params: array of string);
     procedure cm_PagePlugins(const {%H-}Params: array of string);
@@ -364,7 +376,7 @@ uses
   uLng, uGlobs, uShowForm, uDCUtils, uFileSource, uFileSourceUtil,
   uSearchResultFileSource, uFile,
   uFileViewNotebook, uKeyboard, uOSUtils, uArchiveFileSourceUtil,
-  DCOSUtils, RegExpr, uDebug, uShowMsg;
+  DCOSUtils, RegExpr, uDebug, uShowMsg, uConvEncoding;
 
 const
   TimeUnitToComboIndex: array[TTimeUnit] of integer = (0, 1, 2, 3, 4, 5, 6);
@@ -424,9 +436,7 @@ begin
   if s = '' then
   begin
     TfrmFindDlg.Instance.AfterSearchStopped;
-    {$IF NOT (DEFINED(LCLGTK) or DEFINED(LCLGTK2))}
     TfrmFindDlg.Instance.btnStart.Default := True;
-    {$ENDIF}
   end
   else
   begin
@@ -642,7 +652,8 @@ begin
   GetSupportedEncodings(cmbEncoding.Items);
   I := cmbEncoding.Items.IndexOf('UTF-8BOM');
   if I >= 0 then cmbEncoding.Items.Delete(I);
-  cmbEncoding.ItemIndex := cmbEncoding.Items.IndexOf(EncodingAnsi);
+  cmbEncoding.Items.Insert(0, 'Default');
+  cmbEncoding.ItemIndex := 0;
 
   // gray disabled fields
   cbUsePluginChange(Sender);
@@ -660,9 +671,7 @@ begin
   cbTimeFrom.Checked := False;
   cbTimeTo.Checked := False;
 
-  {$IF NOT (DEFINED(LCLGTK) or DEFINED(LCLGTK2))}
   btnStart.Default := True;
-  {$ENDIF}
 
   cmbNotOlderThanUnit.ItemIndex := 3; // Days
   cmbFileSizeUnit.ItemIndex := 1; // Kilobytes
@@ -676,6 +685,10 @@ begin
   CloneMainAction(frmMain.actViewSearches, actList, miViewTab, -1);
   CloneMainAction(frmMain.actDeleteSearches, actList, miAction, -1);
   CloneMainAction(frmMain.actConfigSearches, actList, miOptions, 0);
+
+{$IF DEFINED(FIX_DEFAULT)}
+  Application.AddOnKeyDownBeforeHandler(@FormKeyDown);
+{$ENDIF}
 end;
 
 { TfrmFindDlg.cbUsePluginChange }
@@ -692,11 +705,8 @@ end;
 
 { TfrmFindDlg.cmbEncodingSelect }
 procedure TfrmFindDlg.cmbEncodingSelect(Sender: TObject);
-var
-  AEncoding: string;
 begin
-  AEncoding := NormalizeEncoding(cmbEncoding.Text);
-  cbTextRegExp.Enabled := (AEncoding = EncodingAnsi);
+  cbTextRegExp.Enabled := cbFindText.Checked and SingleByteEncoding(cmbEncoding.Text);
   if not cbTextRegExp.Enabled then cbTextRegExp.Checked := False;
 end;
 
@@ -761,6 +771,7 @@ begin
   EnableControl(cbTextRegExp, cbFindText.Checked);
   lblEncoding.Enabled := cbFindText.Checked;
   cbReplaceText.Checked := False;
+  cmbEncodingSelect(nil);
 
   if not FUpdating and cmbFindText.Enabled and cmbFindText.CanFocus and (Sender = cbFindText) then
   begin
@@ -833,7 +844,8 @@ begin
   cbReplaceText.Checked := False;
   cbCaseSens.Checked := False;
   cbNotContainingText.Checked := False;
-  cmbEncoding.ItemIndex := cmbEncoding.Items.IndexOf(EncodingAnsi);
+  cmbEncoding.ItemIndex := 0;
+  cmbEncodingSelect(nil);
 
   // plugins
   cmbPlugin.Text := '';
@@ -1239,6 +1251,9 @@ begin
         lsFoundedFiles.ScrollWidth := iTemp + 32;
     end;
     lsFoundedFiles.Items.AddObject(sText, Sender);
+{$IF DEFINED(LCLQT) or DEFINED(LCLQT5)}
+    Application.ProcessMessages;
+{$ENDIF}
   end;
 end;
 
@@ -1309,9 +1324,7 @@ begin
 
   if pgcSearch.ActivePage = tsResults then
   begin
-    {$IF NOT (DEFINED(LCLGTK) or DEFINED(LCLGTK2))}
     btnStart.Default := False;
-    {$ENDIF}
     if lsFoundedFiles.SelCount = 0 then lsFoundedFiles.ItemIndex := 0;
     lsFoundedFiles.SetFocus;
     lsFoundedFiles.Selected[lsFoundedFiles.ItemIndex] := True;
@@ -1332,9 +1345,8 @@ begin
   end;
 
   AfterSearchStopped;
-  {$IF NOT (DEFINED(LCLGTK) or DEFINED(LCLGTK2))}
+
   btnStart.Default := True;
-  {$ENDIF}
 
   if cmbFindText.Focused then // if F7 on already focused textSearch field- disable text search and set focun on file mask
   begin
@@ -1397,9 +1409,9 @@ begin
 
   FSearchingActive := True;
   actCancel.Enabled := True;
-  {$IF NOT (DEFINED(LCLGTK) or DEFINED(LCLGTK2))}
+
   btnStop.Default := True;
-  {$ENDIF}
+
   actStart.Enabled := False;
   actClose.Enabled := False;
   actNewSearch.Enabled := False;
@@ -1529,9 +1541,8 @@ begin
   lblFound.Caption := EmptyStr;
   SetWindowCaption(wcs_NewSearch);
   if pgcSearch.ActivePage = tsStandard then cmbFindFileMask.SetFocus;
-  {$IF NOT (DEFINED(LCLGTK) or DEFINED(LCLGTK2))}
+
   btnStart.Default := True;
-  {$ENDIF}
 end;
 
 { TfrmFindDlg.cm_LastSearch }
@@ -1550,7 +1561,12 @@ procedure TfrmFindDlg.cm_View(const Params: array of string);
 begin
   if pgcSearch.ActivePage = tsResults then
     if lsFoundedFiles.ItemIndex <> -1 then
-      ShowViewerByGlob(lsFoundedFiles.Items[lsFoundedFiles.ItemIndex]);
+    begin
+      if (lsFoundedFiles.Items.Objects[lsFoundedFiles.ItemIndex] <> nil) then
+        msgError(rsMsgErrNotSupported)
+      else
+        ShowViewerByGlob(lsFoundedFiles.Items[lsFoundedFiles.ItemIndex]);
+    end;
 end;
 
 { TfrmFindDlg.cm_Edit }
@@ -1558,7 +1574,12 @@ procedure TfrmFindDlg.cm_Edit(const Params: array of string);
 begin
   if pgcSearch.ActivePage = tsResults then
     if lsFoundedFiles.ItemIndex <> -1 then
-      ShowEditorByGlob(lsFoundedFiles.Items[lsFoundedFiles.ItemIndex]);
+    begin
+      if (lsFoundedFiles.Items.Objects[lsFoundedFiles.ItemIndex] <> nil) then
+        msgError(rsMsgErrNotSupported)
+      else
+        ShowEditorByGlob(lsFoundedFiles.Items[lsFoundedFiles.ItemIndex]);
+    end;
 end;
 
 { TfrmFindDlg.cm_GoToFile }
@@ -1572,9 +1593,9 @@ begin
   if lsFoundedFiles.ItemIndex <> -1 then
     try
       StopSearch;
+      TargetFile := lsFoundedFiles.Items[lsFoundedFiles.ItemIndex];
       if (lsFoundedFiles.Items.Objects[lsFoundedFiles.ItemIndex] <> nil) then
       begin
-        TargetFile := lsFoundedFiles.Items[lsFoundedFiles.ItemIndex];
         ArchiveFile := ExtractWord(1, TargetFile, [ReversePathDelim]);
         TargetFile := PathDelim + ExtractWord(2, TargetFile, [ReversePathDelim]);
         AFile := TFileSystemFileSource.CreateFileFromFile(ArchiveFile);
@@ -1591,9 +1612,14 @@ begin
       end
       else
       begin
-        SetFileSystemPath(frmMain.ActiveFrame, ExtractFilePath(lsFoundedFiles.Items[lsFoundedFiles.ItemIndex]));
-        frmMain.ActiveFrame.SetActiveFile(ExtractFileName(lsFoundedFiles.Items[lsFoundedFiles.ItemIndex]));
+        if not mbFileSystemEntryExists(TargetFile) then begin
+          msgError(rsMsgObjectNotExists + LineEnding + TargetFile);
+          Exit;
+        end;
+        SetFileSystemPath(frmMain.ActiveFrame, ExtractFilePath(TargetFile));
+        frmMain.ActiveFrame.SetActiveFile(ExtractFileName(TargetFile));
       end;
+      frmMain.RestoreWindow;
       Close;
     except
       on E: Exception do MessageDlg(E.Message, mtError, [mbOK], 0);
@@ -1640,6 +1666,28 @@ begin
   Close;
 end;
 
+procedure TfrmFindDlg.cm_PageNext(const Params: array of string);
+begin
+  with pgcSearch do
+  begin
+    if PageIndex = PageCount - 1 then
+      ActivePage := Pages[0]
+    else
+      ActivePage := Pages[PageIndex + 1];
+  end;
+end;
+
+procedure TfrmFindDlg.cm_PagePrev(const Params: array of string);
+begin
+  with pgcSearch do
+  begin
+    if PageIndex = 0 then
+      ActivePage := Pages[PageCount - 1]
+    else
+      ActivePage := Pages[PageIndex - 1];
+  end;
+end;
+
 { TfrmFindDlg.cm_PageStandard }
 procedure TfrmFindDlg.cm_PageStandard(const Params: array of string);
 begin
@@ -1683,18 +1731,38 @@ begin
   end;
 
   AfterSearchStopped;
-  {$IF NOT (DEFINED(LCLGTK) or DEFINED(LCLGTK2))}
+
   btnStart.Default := True;
-  {$ENDIF}
+
   CanClose := not Assigned(FFindThread);
 end;
 
 { TfrmFindDlg.FormDestroy }
 procedure TfrmFindDlg.FormDestroy(Sender: TObject);
 begin
-  FreeThenNil(FoundedStringCopy);
-  FreeThenNil(DsxPlugins);
+{$IF DEFINED(FIX_DEFAULT)}
+  Application.RemoveOnKeyDownBeforeHandler(@FormKeyDown);
+{$ENDIF}
+  FreeAndNil(FoundedStringCopy);
+  FreeAndNil(DsxPlugins);
 end;
+
+{$IF DEFINED(FIX_DEFAULT)}
+procedure TfrmFindDlg.FormKeyDown(Sender: TObject; var Key: Word;
+  Shift: TShiftState);
+begin
+  if Key = VK_RETURN then
+  begin
+    if (Sender = lsFoundedFiles) then
+      TCustomListBox(Sender).OnKeyDown(Sender, Key, Shift)
+    else if (Sender is TCustomButton) and (Screen.ActiveForm = Self) then
+    begin
+      TCustomButton(Sender).Click;
+      Key:= 0;
+    end;
+  end;
+end;
+{$ENDIF}
 
 { TfrmFindDlg.FormClose }
 procedure TfrmFindDlg.frmFindDlgClose(Sender: TObject; var CloseAction: TCloseAction);
@@ -2064,7 +2132,7 @@ end;
 procedure TfrmFindDlg.lsFoundedFilesMouseWheelDown(Sender: TObject;
   Shift: TShiftState; MousePos: TPoint; var Handled: boolean);
 begin
-  if (Shift = [ssCtrl]) and (gFonts[dcfEditor].Size > MIN_FONT_SIZE_EDITOR) then
+  if (Shift = [ssCtrl]) and (gFonts[dcfSearchResults].Size > MIN_FONT_SIZE_FILE_SEARCH_RESULTS) then
   begin
     lsFoundedFiles.Font.Size := lsFoundedFiles.Font.Size - 1;
     Handled := True;
@@ -2075,7 +2143,7 @@ end;
 procedure TfrmFindDlg.lsFoundedFilesMouseWheelUp(Sender: TObject;
   Shift: TShiftState; MousePos: TPoint; var Handled: boolean);
 begin
-  if (Shift = [ssCtrl]) and (gFonts[dcfEditor].Size < MAX_FONT_SIZE_EDITOR) then
+  if (Shift = [ssCtrl]) and (gFonts[dcfSearchResults].Size < MAX_FONT_SIZE_FILE_SEARCH_RESULTS) then
   begin
     lsFoundedFiles.Font.Size := lsFoundedFiles.Font.Size + 1;
     Handled := True;
@@ -2206,9 +2274,7 @@ end;
 { TfrmFindDlg.tsStandardEnter }
 procedure TfrmFindDlg.tsStandardEnter(Sender: TObject);
 begin
-  {$IF NOT (DEFINED(LCLGTK) or DEFINED(LCLGTK2))}
   btnStart.Default := True;
-  {$ENDIF}
 end;
 
 { TfrmFindDlg.UpdateTemplatesList }
@@ -2259,6 +2325,15 @@ procedure TfrmFindDlg.ZVTimeToChange(Sender: TObject);
 begin
   if not FUpdating then
     cbTimeTo.Checked := True;
+end;
+
+procedure TfrmFindDlg.PopupMenuFindPopup(Sender: TObject);
+begin
+  if (lsFoundedFiles.ItemIndex <> -1) then
+  begin
+    miShowInViewer.Enabled:= (lsFoundedFiles.Items.Objects[lsFoundedFiles.ItemIndex] = nil);
+    miShowInEditor.Enabled:= (lsFoundedFiles.Items.Objects[lsFoundedFiles.ItemIndex] = nil);
+  end;
 end;
 
 { TfrmFindDlg.OnAddAttribute }

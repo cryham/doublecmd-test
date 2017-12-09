@@ -179,7 +179,7 @@ type
 implementation
 
 uses
-  DCBasicTypes, uGlobs, DCStrUtils, uDCUtils
+  Variants, DCBasicTypes, uGlobs, DCStrUtils, uDCUtils
   {$IFDEF fileSortingTime}
   , uDebug
   {$ENDIF}
@@ -549,6 +549,23 @@ begin
   end;
 end;
 
+function ICompareByVariant(Value1, Value2: Variant; bSortNegative: Boolean):Integer;
+begin
+  if VarIsType(Value1, varString) then
+    Result := CompareStrings(Value1, Value2, gSortNatural, gSortCaseSensitivity)
+  else if Value1 = Value2 then
+    Exit(0)
+  else
+  begin
+    if Value1 < Value2 then
+      Result := -1
+    else
+      Result := +1;
+  end;
+  if bSortNegative then
+    Result := -Result;
+end;
+
 function ReverseSortDirection(SortDirection: TSortDirection): TSortDirection;
 begin
   case SortDirection of
@@ -589,7 +606,7 @@ begin
     FunctionIndex := 0;
     while FunctionIndex < Length(FSortings[SortingIndex].SortFunctions) do
     begin
-      if not (TFileFunctionToProperty[FSortings[SortingIndex].SortFunctions[FunctionIndex]] <= SupportedFileProperties) then
+      if not (GetFilePropertyType(FSortings[SortingIndex].SortFunctions[FunctionIndex]) <= SupportedFileProperties) then
       begin
         for i := FunctionIndex to Length(FSortings[SortingIndex].SortFunctions) - 2 do
           FSortings[SortingIndex].SortFunctions[i] := FSortings[SortingIndex].SortFunctions[i+1];
@@ -614,6 +631,7 @@ class function TBaseSorter.Compare(const FileSorting: TFileSorting; File1, File2
 var
   i: Integer;
   bNegative: Boolean;
+  AFileProp: TFilePropertyType;
 begin
   Result := 0;
 
@@ -631,7 +649,6 @@ begin
   for i := 0 to Length(FileSorting.SortFunctions) - 1 do
   begin
     //------------------------------------------------------
-    // Only DC internal functions supported.
     case FileSorting.SortFunctions[i] of
       fsfName:
         Result := ICompareByName(File1, File2, bNegative);
@@ -692,6 +709,13 @@ begin
                                   File2.TypeProperty.Value);
           if bNegative then Result := -Result;
         end;
+      // Variant properties from plugins
+      else if FileSorting.SortFunctions[i] in fsfVariantAll then
+      begin
+        AFileProp:= TFilePropertyType(FileSorting.SortFunctions[i]);
+        Result:= ICompareByVariant(TFileVariantProperty(File1.Properties[AFileProp]).Value,
+                                   TFileVariantProperty(File2.Properties[AFileProp]).Value, bNegative)
+      end;
     end;
 
     if Result <> 0 then
@@ -982,6 +1006,11 @@ begin
   begin
     Result := ICompareByDirectory(TDisplayFile(item1).FSFile, TDisplayFile(item2).FSFile, False); // Ascending
     if Result <> 0 then Exit;
+  end
+  else begin
+    // Put '..' first.
+    if TDisplayFile(item1).FSFile.Name = '..' then Exit(-1);
+    if TDisplayFile(item2).FSFile.Name = '..' then Exit(+1);
   end;
 
   for i := 0 to Length(FSortings) - 1 do
@@ -1135,6 +1164,11 @@ begin
   begin
     Result := ICompareByDirectory(TFile(item1), TFile(item2), False); // Ascending
     if Result <> 0 then Exit;
+  end
+  else begin
+    // Put '..' first.
+    if TFile(item1).Name = '..' then Exit(-1);
+    if TFile(item2).Name = '..' then Exit(+1);
   end;
 
   for i := 0 to Length(FSortings) - 1 do

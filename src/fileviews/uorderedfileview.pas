@@ -87,7 +87,7 @@ type
     procedure SearchFile(SearchTerm,SeparatorCharset: String; SearchOptions: TQuickSearchOptions);
     procedure Selection(Key: Word; CurIndex: PtrInt);
     procedure SelectRange(FileIndex: PtrInt);
-    procedure SetActiveFile(FileIndex: PtrInt); overload; virtual; abstract;
+    procedure SetActiveFile(FileIndex: PtrInt; ScrollTo: Boolean = True); overload; virtual; abstract;
     procedure SetLastActiveFile(FileIndex: PtrInt);
     {en
        Sets a file as active if the file currently exists.
@@ -343,7 +343,7 @@ begin
       AFile := FFiles[i];
       if FileSource.CanRetrieveProperties(AFile.FSFile, [fpComment]) then
       try
-        FileSource.RetrieveProperties(AFile.FSFile, [fpComment]);
+        FileSource.RetrieveProperties(AFile.FSFile, [fpComment], []);
       except
         on EFileNotFound do;
       end;
@@ -379,7 +379,7 @@ begin
         end;
         if FileSource.CanRetrieveProperties(AFile.FSFile, FilePropertiesNeeded) then
         try
-          FileSource.RetrieveProperties(AFile.FSFile, FilePropertiesNeeded);
+          FileSource.RetrieveProperties(AFile.FSFile, FilePropertiesNeeded, GetVariantFileProperties);
         except
           on EFileNotFound do;
         end;
@@ -413,6 +413,7 @@ begin
           FileSource,
           WorkersThread,
           AFilePropertiesNeeded,
+          GetVariantFileProperties,
           @PropertiesRetrieverOnUpdate,
           AFileList);
 

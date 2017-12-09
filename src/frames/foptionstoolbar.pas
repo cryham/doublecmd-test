@@ -4,7 +4,7 @@
    Toolbar configuration options page
 
    Copyright (C) 2012      Przemyslaw Nagay (cobines@gmail.com)
-   Copyright (C) 2006-2016 Alexander Koblov (alexx2000@mail.ru)
+   Copyright (C) 2006-2017 Alexander Koblov (alexx2000@mail.ru)
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -232,7 +232,7 @@ type
     FUpdatingButtonType: Boolean;
     FUpdatingIconText: Boolean;
     bFirstTimeDrawn: boolean;
-    function AddNewSubToolbar(ToolItem: TKASMenuItem): TKASToolBar;
+    function AddNewSubToolbar(ToolItem: TKASMenuItem; bIncludeButtonOnNewBar:boolean=True): TKASToolBar;
     procedure ApplyEditControls;
     procedure CloseToolbarsBelowCurrentButton;
     procedure CloseToolbar(Index: Integer);
@@ -651,11 +651,12 @@ begin
   Result.Tag := pnToolbars.ComponentCount;
 end;
 
-function TfrmOptionsToolbar.AddNewSubToolbar(ToolItem: TKASMenuItem): TKASToolBar;
+function TfrmOptionsToolbar.AddNewSubToolbar(ToolItem: TKASMenuItem; bIncludeButtonOnNewBar:boolean=True): TKASToolBar;
 begin
   Result := CreateToolbar(ToolItem.SubItems);
-  if Result.ButtonCount = 0 then
-    Result.AddButton(TKASCommandItem.Create(FFormCommands));
+  if bIncludeButtonOnNewBar then
+    if Result.ButtonCount = 0 then
+      Result.AddButton(TKASCommandItem.Create(FFormCommands));
 end;
 
 procedure TfrmOptionsToolbar.ApplyEditControls;
@@ -1275,7 +1276,10 @@ begin
     SourceButton  := Source as TKASToolButton;
     TargetToolbar := Sender as TKASToolBar;
     if SourceButton.ToolBar <> TargetToolBar then
+    begin
+      if (SourceButton = FCurrentButton) then FCurrentButton := nil;
       SourceButton.ToolBar.MoveButton(SourceButton, TargetToolbar, nil);
+    end;
   end;
 end;
 
@@ -1503,77 +1507,85 @@ begin
 end;
 
 { TfrmOptionsToolbar.miImportAllDCCommandsClick }
+// Will add on the top toolbar a button giving access to a sub menu with ALL the internal DC internal commands.
+// This submenu will contain submenus entries, one per internal command category.
+// This is mainly to help to validate run-time that each command has its own icon and so on.
+
 procedure TfrmOptionsToolbar.miAddAllCmdsClick(Sender: TObject);
 var
+  slListCommands: TStringList;
+  AToolbarConfig: TXmlConfig;
+  ToolBarNode, RowNode, AllDCCommandsSubMenuNode, SubMenuNode, CommandCategoryNode, CommandNode: TXmlNode;
+  MenuItemsNode: TXmlNode = nil; // We should preinitialize that one.
   IndexCommand: integer;
-  FlagCategoryTitle: boolean = False;
-  sCmdName: string = '';
-  sHintName: string = '';
-  sHotKey: string = '';
-  sCategory: string = '';
-  ToolBar: TKASToolBar;
-  CategorySubToolBar: TKASToolBar = nil;
-  LocalKASMenuItem: TKASMenuItem;
-  ListCommands: TStringList;
-  SubToolItem: TKASToolItem = nil;
-
+  bFlagCategoryTitle: boolean = False;
+  sCmdName, sHintName, sHotKey, sCategory: string;
+  ATopToolBar: TKASToolBar;
 begin
-  ListCommands := TStringList.Create;
+  slListCommands := TStringList.Create;
   try
-    FFormCommands.GetCommandsListForACommandCategory(ListCommands, '('+rsSimpleWordAll+')', csLegacy);
+    // 1. Recuperate the list of all the DC internal commands.
+    FFormCommands.GetCommandsListForACommandCategory(slListCommands, '(' + rsSimpleWordAll + ')', csLegacy);
 
-    FCurrentButton := nil;
-    ToolBar := GetTopToolbar;
-    CloseToolbarsBelowCurrentButton;
-    if FCurrentButton <> nil then
-      FCurrentButton.Down := False;
+    // 2. Create our XML structure to hold all our tree of sub menu and commands.
+    AToolbarConfig := TXmlConfig.Create;
+    try
+      ToolBarNode := AToolbarConfig.FindNode(AToolbarConfig.RootNode, 'Toolbars/MainToolbar', True);
+      AToolbarConfig.ClearNode(ToolBarNode);
+      RowNode := AToolbarConfig.AddNode(ToolBarNode, 'Row');
 
-    LocalKASMenuItem := TKASMenuItem.Create;
-    LocalKASMenuItem.Icon := 'cm_doanycmcommand';
-    LocalKASMenuItem.Hint := 'All DC internal commands';
-    FCurrentButton := ToolBar.AddButton(LocalKASMenuItem);
-    Toolbar := AddNewSubToolbar(LocalKASMenuItem);
-    PressButtonDown(FCurrentButton);
-    Toolbar.RemoveButton(0); //Remove the default added button by the "AddNewSubToolbar" routine.
+      AllDCCommandsSubMenuNode := AToolbarConfig.AddNode(RowNode, 'Menu');
+      AToolbarConfig.AddValue(AllDCCommandsSubMenuNode, 'ID', GuidToString(DCGetNewGUID));
+      AToolbarConfig.AddValue(AllDCCommandsSubMenuNode, 'Icon', 'cm_doanycmcommand');
+      AToolbarConfig.AddValue(AllDCCommandsSubMenuNode, 'Hint', rsMsgAllDCIntCmds);
 
-    for IndexCommand:=0 to pred(ListCommands.Count) do
-    begin
-      FFormCommands.ExtractCommandFields(ListCommands.Strings[IndexCommand],sCategory,sCmdName,sHintName,sHotKey,FlagCategoryTitle);
+      CommandCategoryNode := AToolbarConfig.AddNode(AllDCCommandsSubMenuNode, 'MenuItems');
 
-      if FlagCategoryTitle=FALSE then
+      for IndexCommand := 0 to pred(slListCommands.Count) do
       begin
-        SubToolItem := TKASCommandItem.Create(FFormCommands);
-        TKASCommandItem(SubToolItem).Command := sCmdName;
-        TKASCommandItem(SubToolItem).Hint := sHintName;
-        TKASCommandItem(SubToolItem).Icon := UTF8LowerCase(TKASCommandItem(SubToolItem).Command);
-        FCurrentButton := CategorySubToolBar.AddButton(SubToolItem);
-      end
-      else
-      begin
-        if CategorySubToolBar<>nil then
+        FFormCommands.ExtractCommandFields(slListCommands.Strings[IndexCommand], sCategory, sCmdName, sHintName, sHotKey, bFlagCategoryTitle);
+
+        if not bFlagCategoryTitle then
         begin
-          FCurrentButton:=Toolbar.Buttons[pred(Toolbar.ButtonCount)];
-          CloseToolbarsBelowCurrentButton;
+          if MenuItemsNode <> nil then
+          begin
+            CommandNode := AToolbarConfig.AddNode(MenuItemsNode, 'Command');
+            AToolbarConfig.AddValue(CommandNode, 'ID', GuidToString(DCGetNewGUID));
+            AToolbarConfig.AddValue(CommandNode, 'Icon', UTF8LowerCase(sCmdName));
+            AToolbarConfig.AddValue(CommandNode, 'Command', sCmdName);
+            AToolbarConfig.AddValue(CommandNode, 'Hint', sHintName);
+          end;
+        end
+        else
+        begin
+          SubMenuNode := AToolbarConfig.AddNode(CommandCategoryNode, 'Menu');
+          AToolbarConfig.AddValue(SubMenuNode, 'ID', GuidToString(DCGetNewGUID));
+          AToolbarConfig.AddValue(SubMenuNode, 'Hint', sCmdName);
+          //Let's take icon of first command of the category for the subtoolbar icon for this "new" category
+          FFormCommands.ExtractCommandFields(slListCommands.Strings[IndexCommand + 1], sCategory, sCmdName, sHintName, sHotKey, bFlagCategoryTitle);
+          AToolbarConfig.AddValue(SubMenuNode, 'Icon', UTF8LowerCase(sCmdName));
+          MenuItemsNode := AToolbarConfig.AddNode(SubMenuNode, 'MenuItems');
         end;
-        LocalKASMenuItem := TKASMenuItem.Create;
-        LocalKASMenuItem.Hint := sCmdName;
-        //Let's take icon of first command of the category for the subtoolbar icon for this "new" category
-        FFormCommands.ExtractCommandFields(ListCommands.Strings[IndexCommand+1],sCategory,sCmdName,sHintName,sHotKey,FlagCategoryTitle);
-        LocalKASMenuItem.Icon := UTF8LowerCase(sCmdName);
-        FCurrentButton := ToolBar.AddButton(LocalKASMenuItem);
-        CategorySubToolBar := AddNewSubToolbar(LocalKASMenuItem);
-        PressButtonDown(FCurrentButton);
-        CategorySubToolBar.RemoveButton(0);  //Remove the default added button by the "AddNewSubToolbar" routine.
       end;
-    end;
 
-    //To give the impression of complete addition, let's finish by selecting last command added.
-    FCurrentButton:=CategorySubToolBar.Buttons[pred(CategorySubToolBar.ButtonCount)];
-    PressButtonDown(FCurrentButton);
+      // 3. Now, we import our structure and at once, bang! we'll have added our bar and sub ones.
+      ATopToolBar := GetTopToolbar;
+      ToolBarNode := AToolbarConfig.FindNode(AToolbarConfig.RootNode, 'Toolbars/MainToolbar', False);
+      if ToolBarNode <> nil then
+      begin
+        LoadToolbar(ATopToolBar, AToolbarConfig, ToolBarNode, tocl_AddToCurrentToolbarContent);
+        if ATopToolBar.ButtonCount > 0 then
+          PressButtonDown(ATopToolBar.Buttons[pred(ATopToolBar.ButtonCount)]); //Let's press the last added button since user might wants to complement what he just added
+      end;
+
+    finally
+      FreeAndNil(AToolbarConfig);
+    end;
   finally
-    ListCommands.Free;
+    slListCommands.Free;
   end;
 end;
+
 
 { TfrmOptionsToolbar.miExportToAnythingClick }
 procedure TfrmOptionsToolbar.miExportToAnythingClick(Sender: TObject);
@@ -1810,7 +1822,7 @@ begin
         LocalKASMenuItem.Icon := 'cm_configtoolbars';
         LocalKASMenuItem.Hint := ImportedToolbarHint;
         FCurrentButton := ToolBar.AddButton(LocalKASMenuItem);
-        Toolbar := AddNewSubToolbar(LocalKASMenuItem);
+        Toolbar := AddNewSubToolbar(LocalKASMenuItem, False);
       end;
     end;
 
@@ -1819,26 +1831,25 @@ begin
       {$IFDEF MSWINDOWS}
       ACTION_WITH_WINCMDINI, ACTION_WITH_TC_TOOLBARFILE:
       begin
-        if (ActionDispatcher and MASK_FLUSHORNOT_EXISTING) = ACTION_FLUSH_EXISTING then
-        begin
-          FCurrentButton := nil;
-          Application.ProcessMessages;
-          ToolBar.Clear;
-          Application.ProcessMessages;
+        ToolbarConfig := TXmlConfig.Create;
+        try
+          ConvertTCToolbarToDCXmlConfig(OpenDialog.FileName, ToolbarConfig);
+
+          ToolBarNode := ToolbarConfig.FindNode(ToolbarConfig.RootNode, 'Toolbars/MainToolbar', False);
+          if ToolBarNode <> nil then
+          begin
+            FCurrentButton := nil;
+            if (ActionDispatcher and MASK_FLUSHORNOT_EXISTING) = ACTION_FLUSH_EXISTING then
+              LoadToolbar(ToolBar, ToolbarConfig, ToolBarNode, tocl_FlushCurrentToolbarContent)
+            else
+              LoadToolbar(ToolBar, ToolbarConfig, ToolBarNode, tocl_AddToCurrentToolbarContent);
+
+            if ToolBar.ButtonCount > 0 then
+              PressButtonDown(ToolBar.Buttons[pred(ToolBar.ButtonCount)]); //Let's press the last added button since user might wants to complement what he just added
+          end;
+        finally
+          FreeAndNil(ToolbarConfig);
         end;
-
-        ImportTCToolbarsToDC(OpenDialog.FileName, LocalKASMenuItem, ToolBar, (ImportDestination and $01), FFormCommands);
-
-        case ImportDestination of
-          IMPORT_IN_MAIN_TOOLBAR_TO_NEW_SUB_BAR, IMPORT_IN_CURRENT_BAR_TO_NEW_SUB_BAR:
-            begin
-              PressButtonDown(FCurrentButton);
-              ToolBar.RemoveButton(0); //We remove the button the was added by default when we created the toolbar
-            end;
-        end;
-
-        if ToolBar.ButtonCount > 0 then
-          PressButtonDown(ToolBar.Buttons[pred(ToolBar.ButtonCount)]); //Let's press the last added button since user might wants to complement what he just added
       end;
       {$ENDIF}
 

@@ -49,11 +49,13 @@ type
   TThumbDrawGrid = class(TFileViewGrid)
   private
     FThumbSize: TSize;
+    FMouseDownY: Integer;
     FThumbView: TThumbFileView;
     FUpdateColCount: Integer;
   protected
     procedure KeyDown(var Key : Word; Shift : TShiftState); override;
     procedure MouseMove(Shift: TShiftState; X, Y: Integer); override;
+    procedure MouseDown(Button: TMouseButton; Shift: TShiftState; X, Y: Integer); override;
   protected
     procedure UpdateView; override;
     procedure CalculateColRowCount; override;
@@ -80,6 +82,7 @@ type
     function GetFileViewGridClass: TFileViewGridClass; override;
     function GetVisibleFilesIndexes: TRange; override;
     procedure ShowRenameFileEdit(aFile: TFile); override;
+    procedure UpdateRenameFileEditPosition(); override;
   public
     constructor Create(AOwner: TWinControl; AConfig: TXmlConfig; ANode: TXmlNode; AFlags: TFileViewFlags = []); override;
     constructor Create(AOwner: TWinControl; AFileView: TFileView; AFlags: TFileViewFlags = []); override;
@@ -251,6 +254,8 @@ const
     Dispatch(Msg);
   end;
 
+var
+  Delta: Integer;
 begin
   inherited MouseMove(Shift, X, Y);
   if DragManager.IsDragging or FThumbView.IsMouseSelecting then
@@ -259,12 +264,22 @@ begin
     if (Abs(LastPos - Y) > 8) then
     begin
       LastPos:= Y;
-      if Y < DefaultRowHeight div 3 then
+      Delta := DefaultRowHeight div 3;
+      if Y < Delta then
         Scroll(SB_LINEUP)
-      else if Y > ClientHeight - DefaultRowHeight div 3 then
+      else if (Y > ClientHeight - Delta) and (Y - FMouseDownY > 8) then
+      begin
+        FMouseDownY := -1;
         Scroll(SB_LINEDOWN);
+      end;
     end;
   end;
+end;
+
+procedure TThumbDrawGrid.MouseDown(Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
+begin
+  FMouseDownY := Y;
+  inherited MouseDown(Button, Shift, X, Y);
 end;
 
 procedure TThumbDrawGrid.UpdateView;
@@ -618,29 +633,27 @@ begin
 end;
 
 procedure TThumbFileView.ShowRenameFileEdit(aFile: TFile);
-var
-  ARect: TRect;
-  ALeft, ATop, AWidth, AHeight: Integer;
 begin
   if not edtRename.Visible then
   begin
     edtRename.Font.Name  := gFonts[dcfMain].Name;
-    edtRename.Font.Size  := gFonts[dcfMain].Size;;
+    edtRename.Font.Size  := gFonts[dcfMain].Size;
     edtRename.Font.Style := gFonts[dcfMain].Style;
 
-    with dgPanel do
-    begin
-      ARect := CellRect(Col, Row);
-      ATop := ARect.Bottom - Canvas.TextHeight('Wg') - 4;
-      ALeft := ARect.Left;
-      AWidth := ARect.Right - ALeft;
-      AHeight := ARect.Bottom - ATop;
-    end;
-
-    edtRename.SetBounds(ALeft, ATop, AWidth, AHeight);
+    UpdateRenameFileEditPosition;
   end;
 
   inherited ShowRenameFileEdit(AFile);
+end;
+
+procedure TThumbFileView.UpdateRenameFileEditPosition;
+var
+  ARect: TRect;
+begin
+  ARect := dgPanel.CellRect(dgPanel.Col, dgPanel.Row);
+  ARect.Top := ARect.Bottom - dgPanel.Canvas.TextHeight('Wg') - 4;
+
+  edtRename.SetBounds(ARect.Left, ARect.Top, ARect.Right - ARect.Left, ARect.Bottom - ARect.Top);
 end;
 
 constructor TThumbFileView.Create(AOwner: TWinControl; AConfig: TXmlConfig;

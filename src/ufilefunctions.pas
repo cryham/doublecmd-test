@@ -4,6 +4,7 @@
    Filepanel columns implementation unit
 
    Copyright (C) 2008  Dmitry Kolomiets (B4rr4cuda@rambler.ru)
+   Copyright (C) 2008-2017 Alexander Koblov (alexx2000@mail.ru)
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -30,27 +31,32 @@ uses
   Classes, SysUtils, Menus, uFile, uFileProperty, uFileSource;
 
 type
-  TFileFunction = (fsfName,
-                   fsfExtension,
-                   fsfSize,
-                   fsfAttr,
-                   fsfPath,
-                   fsfGroup,
-                   fsfOwner,
-                   fsfModificationTime,
-                   fsfCreationTime,
-                   fsfLastAccessTime,
-                   fsfChangeTime,
-                   fsfLinkTo,
-                   fsfNameNoExtension,
-                   fsfType,
-                   fsfComment,
-                   fsfCompressedSize,
-                   fsfInvalid);
+  TFileFunction = (fsfName = 0,
+                   fsfExtension = 1,
+                   fsfSize = 2,
+                   fsfAttr = 3,
+                   fsfPath = 4,
+                   fsfGroup = 5,
+                   fsfOwner = 6,
+                   fsfModificationTime = 7,
+                   fsfCreationTime = 8,
+                   fsfLastAccessTime = 9,
+                   fsfChangeTime = 10,
+                   fsfLinkTo = 11,
+                   fsfNameNoExtension = 12,
+                   fsfType = 13,
+                   fsfComment = 14,
+                   fsfCompressedSize = 15,
+                   fsfInvalid = 16,
+                   fsfVariant = Ord(fpVariant),
+                   fsfMaximum = Ord(fpMaximum));
 
   TFileFunctions = array of TFileFunction;
 
-  const TFileFunctionStrings: array [TFileFunction] of string
+const
+  fsfVariantAll = [fsfVariant..fsfMaximum];
+
+  const TFileFunctionStrings: array [Low(TFileFunction)..fsfInvalid] of string
             = ('GETFILENAME',
                'GETFILEEXT',
                'GETFILESIZE',
@@ -70,31 +76,13 @@ type
                ''                 // fsfInvalid
                );
 
-  // Which file properties must be supported for each file function to work.
-  const TFileFunctionToProperty: array [TFileFunction] of TFilePropertiesTypes
-            = ([fpName],
-               [fpName],
-               [fpSize],
-               [fpAttributes],
-               [] { path },
-               [fpOwner],
-               [fpOwner],
-               [fpModificationTime],
-               [fpCreationTime],
-               [fpLastAccessTime],
-               [fpChangeTime],
-               [fpLink],
-               [fpName],
-               [fpType],
-               [fpComment],
-               [fpCompressedSize],
-               [] { invalid });
-
   function FormatFileFunction(FuncS: string; AFile: TFile; const AFileSource: IFileSource; RetrieveProperties: Boolean = False): string;
   function FormatFileFunctions(FuncS: String; AFile: TFile; const AFileSource: IFileSource): String;
+  function GetVariantFileProperty(const FuncS: String; AFile: TFile; const AFileSource: IFileSource): Variant;
   function GetFileFunctionByName(FuncS: string): TFileFunction;
+  function GetFilePropertyType(FileFunction: TFileFunction): TFilePropertiesTypes; inline;
 
-  procedure FillContentFieldMenu(MenuItem: TMenuItem; OnMenuItemClick: TNotifyEvent);
+  procedure FillContentFieldMenu(MenuItem: TMenuItem; OnMenuItemClick: TNotifyEvent; const FileSystem: String = '');
 
   procedure FillFileFuncList;
 
@@ -108,7 +96,31 @@ var
 implementation
 
 uses
-  StrUtils, WdxPlugin, uWdxModule, uGlobs, uLng, uDefaultFilePropertyFormatter, uFileSourceProperty;
+  StrUtils, WdxPlugin, uWdxModule, uGlobs, uLng, uDefaultFilePropertyFormatter,
+  uFileSourceProperty, uWfxPluginFileSource, uWfxModule, uColumns, DCFileAttributes;
+
+const
+  ATTR_OCTAL = 'OCTAL';
+
+// Which file properties must be supported for each file function to work.
+const TFileFunctionToProperty: array [Low(TFileFunction)..fsfInvalid] of TFilePropertiesTypes
+          = ([fpName],
+             [fpName],
+             [fpSize],
+             [fpAttributes],
+             [] { path },
+             [fpOwner],
+             [fpOwner],
+             [fpModificationTime],
+             [fpCreationTime],
+             [fpLastAccessTime],
+             [fpChangeTime],
+             [fpLink],
+             [fpName],
+             [fpType],
+             [fpComment],
+             [fpCompressedSize],
+             [] { invalid });
 
 //Return type (Script or DC or Plugin etc)
 function GetModType(str: String): String;
@@ -166,17 +178,18 @@ begin
   Result := Copy(S, 1, I - 1);
 end;
 
-function FormatFileFunction(FuncS: String; AFile: TFile; const AFileSource: IFileSource; RetrieveProperties: Boolean = False): String;
+function FormatFileFunction(FuncS: string; AFile: TFile;
+  const AFileSource: IFileSource; RetrieveProperties: Boolean): string;
 var
   AIndex: Integer;
-  AType, AName, AFunc, AParam: String;
   FileFunction: TFileFunction;
+  AType, AFunc, AParam: String;
+  AFileProperty: TFileVariantProperty;
   FilePropertiesNeeded: TFilePropertiesTypes;
 begin
   Result := EmptyStr;
   //---------------------
   AType  := upcase(GetModType(FuncS));
-  AName  := upcase(GetModName(FuncS));
   AFunc  := upcase(GetModFunctionName(FuncS));
   AParam := upcase(GetModFunctionParams(FuncS));
   //---------------------
@@ -192,7 +205,7 @@ begin
     begin
       FilePropertiesNeeded:= TFileFunctionToProperty[FileFunction];
       if aFileSource.CanRetrieveProperties(AFile, FilePropertiesNeeded) then
-        aFileSource.RetrieveProperties(AFile, FilePropertiesNeeded);
+        aFileSource.RetrieveProperties(AFile, FilePropertiesNeeded, []);
     end;
     case FileFunction of
       fsfName:
@@ -214,15 +227,24 @@ begin
         begin
           if (AFile.IsDirectory or AFile.IsLinkToDirectory) and
             ((not (fpSize in AFile.SupportedProperties)) or (AFile.Size = 0))
-          then
-            Result := '<DIR>'
+          then begin
+            if AFile.IsLinkToDirectory then
+              Result := '<LNK>'
+            else
+              Result := '<DIR>'
+          end
           else if fpSize in AFile.SupportedProperties then
             Result := AFile.Properties[fpSize].Format(DefaultFilePropertyFormatter);
         end;
 
       fsfAttr:
         if fpAttributes in AFile.SupportedProperties then
-          Result := AFile.Properties[fpAttributes].Format(DefaultFilePropertyFormatter);
+        begin
+          if AFile.Properties[fpAttributes] is TUnixFileAttributesProperty and (AParam = ATTR_OCTAL) then
+            Result := FormatUnixModeOctal(AFile.Attributes)
+          else
+            Result := AFile.Properties[fpAttributes].Format(DefaultFilePropertyFormatter);
+        end;
 
       fsfPath:
         Result := AFile.Path;
@@ -281,8 +303,12 @@ begin
         begin
           if (AFile.IsDirectory or AFile.IsLinkToDirectory) and
             ((not (fpCompressedSize in AFile.SupportedProperties)) or (AFile.CompressedSize = 0))
-          then
-            Result := '<DIR>'
+          then begin
+            if AFile.IsLinkToDirectory then
+              Result := '<LNK>'
+            else
+              Result := '<DIR>'
+          end
           else if fpCompressedSize in AFile.SupportedProperties then
             Result := AFile.Properties[fpCompressedSize].Format(DefaultFilePropertyFormatter);
         end;
@@ -293,15 +319,18 @@ begin
   //------------------------------------------------------
   else if AType = sFuncTypePlugin then
   begin
-    if fspDirectAccess in AFileSource.Properties then
-    begin
-      if not gWdxPlugins.IsLoaded(AName) then
-        if not gWdxPlugins.LoadModule(AName) then
-          Exit;
-      if gWdxPlugins.GetWdxModule(AName).FileParamVSDetectStr(AFile) then
+    // Retrieve additional properties if needed
+    if RetrieveProperties then
+      Result:= GetVariantFileProperty(FuncS, AFile, AFileSource)
+    else begin
+      for AIndex:= 0 to High(AFile.VariantProperties) do
       begin
-        Result := gWdxPlugins.GetWdxModule(AName).CallContentGetValue(
-          AFile.FullPath, AFunc, AParam, 0);
+        AFileProperty:= TFileVariantProperty(AFile.VariantProperties[AIndex]);
+        if Assigned(AFileProperty) and SameText(FuncS, AFileProperty.Name) then
+        begin
+          Result:= AFileProperty.Format(DefaultFilePropertyFormatter);
+          Break;
+        end;
       end;
     end;
   end;
@@ -348,17 +377,102 @@ begin
   begin
     AIndex := FileFunctionsStr.IndexOfName(AFunc);
     if AIndex >= 0 then Exit(TFileFunction(AIndex));
-  end;
+  end
+  else if AType = sFuncTypePlugin then Exit(fsfVariant);
   Result := fsfInvalid;
 end;
 
-procedure FillContentFieldMenu(MenuItem: TMenuItem; OnMenuItemClick: TNotifyEvent);
+function GetVariantFileProperty(const FuncS: String; AFile: TFile;
+  const AFileSource: IFileSource): Variant;
 var
-  I, J: Integer;
+  AType, AName, AFunc, AParam: String;
+begin
+  Result := Unassigned;
+  //---------------------
+  AType  := upcase(GetModType(FuncS));
+  AName  := upcase(GetModName(FuncS));
+  AFunc  := upcase(GetModFunctionName(FuncS));
+  AParam := upcase(GetModFunctionParams(FuncS));
+  //------------------------------------------------------
+  //Plugin function
+  //------------------------------------------------------
+  if AType = sFuncTypePlugin then
+  begin
+    if AFileSource.IsClass(TWfxPluginFileSource) then
+    begin
+      if IWfxPluginFileSource(AFileSource).WfxModule.ContentPlugin and
+         IWfxPluginFileSource(AFileSource).WfxModule.FileParamVSDetectStr(AFile) then
+      begin
+        Result := IWfxPluginFileSource(AFileSource).WfxModule.CallContentGetValueV(
+          AFile.FullPath, AFunc, AParam, 0);
+      end;
+    end
+    else if fspDirectAccess in AFileSource.Properties then
+    begin
+      if not gWdxPlugins.IsLoaded(AName) then
+        if not gWdxPlugins.LoadModule(AName) then
+          Exit;
+      if gWdxPlugins.GetWdxModule(AName).FileParamVSDetectStr(AFile) then
+      begin
+        Result := gWdxPlugins.GetWdxModule(AName).CallContentGetValueV(
+          AFile.FullPath, AFunc, AParam, 0);
+      end;
+    end;
+  end;
+  //------------------------------------------------------
+end;
+
+function GetFilePropertyType(FileFunction: TFileFunction): TFilePropertiesTypes;
+begin
+  if FileFunction >= fsfVariant then
+    Result:= [TFilePropertyType(FileFunction)]
+  else begin
+    Result:= TFileFunctionToProperty[FileFunction];
+  end;
+end;
+
+procedure AddModule(MenuItem: TMenuItem; OnMenuItemClick: TNotifyEvent; Module: TWDXModule);
+var
+  J: Integer;
   sUnits: String;
-  Module: TWDXModule;
   Mi, mi2: TMenuItem;
   WdxField: TWdxField;
+begin
+  MI:= TMenuItem.Create(MenuItem);
+  MI.Caption:= Module.Name;
+  MenuItem.Add(MI);
+  // Load fields list
+  for J:= 0 to Module.FieldList.Count - 1 do
+  begin
+    WdxField:= TWdxField(Module.FieldList.Objects[J]);
+    if not (WdxField.FType in [ft_fulltext, ft_fulltextw]) then
+    begin
+      MI:= TMenuItem.Create(MenuItem);
+      MI.Tag:= 1;
+      MI.Caption:= Module.FieldList[J];
+      MenuItem.Items[MenuItem.Count - 1].Add(MI);
+      if WdxField.FType <> ft_multiplechoice then
+      begin
+        sUnits:= WdxField.FUnits;
+        while sUnits <> EmptyStr do
+        begin
+          MI2:=TMenuItem.Create(MenuItem);
+          MI2.Tag:= 2;
+          MI2.Caption:= Copy2SymbDel(sUnits, '|');
+          MI2.OnClick:= OnMenuItemClick;
+          MI.Add(MI2);
+        end;
+      end;
+      if MI.Count = 0 then MI.OnClick:= OnMenuItemClick;
+    end;
+  end;
+end;
+
+procedure FillContentFieldMenu(MenuItem: TMenuItem; OnMenuItemClick: TNotifyEvent; const FileSystem: String);
+var
+  I: Integer;
+  MI, MI2: TMenuItem;
+  Module: TWDXModule;
 begin
   MenuItem.Clear;
 
@@ -372,46 +486,47 @@ begin
     MI.Tag:= 0;
     MI.Hint:= FileFunctionsStr.Names[I];
     MI.Caption:= FileFunctionsStr.ValueFromIndex[I] + '  (' + MI.Hint + ')';
-    MI.OnClick:= OnMenuItemClick;
     MenuItem.Items[0].Add(MI);
-  end;
-
-  // Plugins
-  MI:= TMenuItem.Create(MenuItem);
-  MI.Caption:= 'Plugins';
-  MenuItem.Add(MI);
-  for I:= 0 to gWdxPlugins.Count - 1 do
-  begin
-    Module:= gWdxPlugins.GetWdxModule(I);
-    if not (Module.IsLoaded or Module.LoadModule) then
-     Continue;
-    MI:= TMenuItem.Create(MenuItem);
-    MI.Caption:= Module.Name;
-    MenuItem.Items[1].Add(MI);
-    // Load fields list
-    for J:= 0 to Module.FieldList.Count - 1 do
+    // Special case for attributes
+    if TFileFunctionStrings[fsfAttr] = FileFunctionsStr.Names[I] then
     begin
-      WdxField:= TWdxField(Module.FieldList.Objects[J]);
-      if not (WdxField.FType in [ft_fulltext, ft_fulltextw]) then
-      begin
-        MI:= TMenuItem.Create(MenuItem);
-        MI.Tag:= 1;
-        MI.Caption:= Module.FieldList[J];
-        MenuItem.Items[1].Items[MenuItem.Items[1].Count - 1].Add(MI);
-        if WdxField.FType <> ft_multiplechoice then
-        begin
-          sUnits:= WdxField.FUnits;
-          while sUnits <> EmptyStr do
-          begin
-            MI2:=TMenuItem.Create(MenuItem);
-            MI2.Tag:= 2;
-            MI2.Caption:= Copy2SymbDel(sUnits, '|');
-            MI2.OnClick:= OnMenuItemClick;
-            MI.Add(MI2);
-          end;
-        end;
-        if MI.Count = 0 then MI.OnClick:= OnMenuItemClick;
-      end;
+      // String attributes
+      MI2:= TMenuItem.Create(MenuItem);
+      MI2.Tag:= 3;
+      MI2.Hint:= '';
+      MI2.Caption:= rsMnuContentDefault;
+      MI2.OnClick:= OnMenuItemClick;
+      MI.Add(MI2);
+      // Octal attributes
+      MI2:= TMenuItem.Create(MenuItem);
+      MI2.Tag:= 3;
+      MI2.Hint:= ATTR_OCTAL;
+      MI2.Caption:= rsMnuContentOctal;
+      MI2.OnClick:= OnMenuItemClick;
+      MI.Add(MI2);
+    end;
+    if MI.Count = 0 then MI.OnClick:= OnMenuItemClick;
+  end;
+  // Plugins
+  if (FileSystem = EmptyStr) or SameText(FileSystem, FS_GENERAL) then
+  begin
+    MI:= TMenuItem.Create(MenuItem);
+    MI.Caption:= rsOptionsEditorPlugins;
+    MenuItem.Add(MI);
+    for I:= 0 to gWdxPlugins.Count - 1 do
+    begin
+      Module:= gWdxPlugins.GetWdxModule(I);
+      if not (Module.IsLoaded or Module.LoadModule) then
+       Continue;
+      AddModule(MI, OnMenuItemClick, Module);
+    end;
+  end
+  else begin
+    I:= gWFXPlugins.IndexOfName(FileSystem);
+    if (I >= 0) then begin
+      Module:= gWFXPlugins.LoadModule(gWFXPlugins.FileName[I]);
+      if Assigned(Module) and TWfxModule(Module).ContentPlugin then
+        AddModule(MenuItem, OnMenuItemClick, Module);
     end;
   end;
 end;

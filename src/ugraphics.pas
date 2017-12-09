@@ -3,7 +3,7 @@
    -------------------------------------------------------------------------
    Graphic functions
 
-   Copyright (C) 2013-2014 Alexander Koblov (alexx2000@mail.ru)
+   Copyright (C) 2013-2017 Alexander Koblov (alexx2000@mail.ru)
 
    This library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -27,14 +27,24 @@ unit uGraphics;
 interface
 
 uses
-  Classes, SysUtils, Graphics;
+  Classes, SysUtils, Graphics, Controls;
+
+type
+
+  { TImageListHelper }
+
+  TImageListHelper = class helper for TImageList
+  public
+    procedure LoadThemeIcon(Index: Integer; const AIconName: String);
+  end;
 
 procedure BitmapAssign(Bitmap: TBitmap; Image: TRasterImage);
+procedure BitmapAlpha(var ABitmap: TBitmap; APercent: Single);
 
 implementation
 
 uses
-  GraphType;
+  GraphType, FPimage, IntfGraphics, uPixMapManager;
 
 type
   TRawAccess = class(TRasterImage) end;
@@ -48,6 +58,45 @@ begin
   Bitmap.LoadFromRawImage(RawImage^, True);
   // Set image data pointer to nil, so it will not free double
   RawImage^.ReleaseData;
+end;
+
+procedure BitmapAlpha(var ABitmap: TBitmap; APercent: Single);
+var
+  X, Y: Integer;
+  Color: TFPColor;
+  AImage: TLazIntfImage;
+begin
+  if ABitmap.RawImage.Description.AlphaPrec <> 0 then
+  begin
+    AImage:= ABitmap.CreateIntfImage();
+    for X:= 0 to AImage.Width - 1 do
+    begin
+      for Y:= 0 to AImage.Height - 1 do
+      begin
+        Color:= AImage.Colors[X, Y];
+        Color.Alpha:= Round(Color.Alpha * APercent);
+        AImage.Colors[X, Y]:= Color;
+      end;
+    end;
+    ABitmap.LoadFromIntfImage(AImage);
+    AImage.Free;
+  end;
+end;
+
+{ TImageListHelper }
+
+procedure TImageListHelper.LoadThemeIcon(Index: Integer; const AIconName: String);
+var
+  ABitmap: TBitmap;
+begin
+  ABitmap:= PixMapManager.GetThemeIcon(AIconName, Self.Width);
+  if (ABitmap = nil) then ABitmap:= TBitmap.Create;
+  if (Index < Count) then
+    Self.Replace(Index, ABitmap , nil)
+  else begin
+    Self.Insert(Index, ABitmap , nil)
+  end;
+  ABitmap.Free;
 end;
 
 end.

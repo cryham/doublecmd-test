@@ -4,6 +4,7 @@
    Date and time functions.
 
    Copyright (C) 2009-2012 Przemysław Nagay (cobines@gmail.com)
+   Copyright (C) 2017 Alexander Koblov (alexx2000@mail.ru)
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -92,6 +93,10 @@ function UnixFileTimeToDateTime(UnixTime: TUnixFileTime) : TDateTime;
 function DateTimeToUnixFileTime(DateTime: TDateTime) : TUnixFileTime;
 function UnixFileTimeToDosTime(UnixTime: TUnixFileTime): TDosFileTime;
 function UnixFileTimeToWinTime(UnixTime: TUnixFileTime): TWinFileTime;
+function WinFileTimeToUnixTime(WinTime: TWinFileTime) : TUnixFileTime;
+
+function WcxFileTimeToDateTime(WcxTime: LongInt): TDateTime;
+function UnixFileTimeToWcxTime(UnixTime: TUnixFileTime): LongInt;
 
 function GetTimeZoneBias: LongInt;
 
@@ -494,6 +499,37 @@ begin
     Result := WinFileTime;
 end;
 
+function WinFileTimeToUnixTime(WinTime: TWinFileTime): TUnixFileTime;
+begin
+  Result:= TUnixFileTime((WinTime - $019DB1DED53E8000) div 10000000);
+end;
+
+function WcxFileTimeToDateTime(WcxTime: LongInt): TDateTime;
+begin
+{$IF DEFINED(MSWINDOWS)}
+  Result := DosFileTimeToDateTime(WcxTime);
+{$ELSEIF DEFINED(UNIX)}
+{$PUSH}{$R-}
+  Result := FileTimeToDateTime(WcxTime);
+{$POP}
+{$ELSE}
+  Result := 0;
+{$ENDIF}
+end;
+
+function UnixFileTimeToWcxTime(UnixTime: TUnixFileTime): LongInt;
+begin
+{$IF DEFINED(MSWINDOWS)}
+  Result := UnixFileTimeToDosTime(UnixTime);
+{$ELSEIF DEFINED(UNIX)}
+{$PUSH}{$R-}
+  Result := UnixTime;
+{$POP}
+{$ELSE}
+  Result := 0;
+{$ENDIF}
+end;
+
 function GetTimeZoneBias: LongInt;
 begin
   {$IF DEFINED(MSWINDOWS)}
@@ -548,7 +584,7 @@ end;
 function FileTimeCompare(SourceTime, TargetTime: TDateTime; NtfsShift: Boolean): Integer;
 const
   TimeDiff = 3100 / MSecsPerDay;
-  NtfsDiff = MinsPerHour * SecsPerMin;
+  NtfsDiff:TDateTime = (1/HoursPerDay);
 var
   FileTimeDiff,
   NtfsTimeDiff: TDateTime;

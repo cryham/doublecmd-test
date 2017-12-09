@@ -386,7 +386,7 @@ Tlua_pushinteger=  procedure (L : Plua_State; n : lua_Integer);  cdecl;
 Tlua_pushlstring=  procedure (L : Plua_State; const s : PChar; ls : size_t);  cdecl;
 Tlua_pushstring=  procedure (L : Plua_State; const s : PChar);  cdecl;
 Tlua_pushvfstring=  function  (L : Plua_State; const fmt : PChar; argp : Pointer) : PChar;  cdecl;
-Tlua_pushfstring=  function  (L : Plua_State; const fmt : PChar) : PChar; {varargs;}  cdecl;
+Tlua_pushfstring=  function  (L : Plua_State; const fmt : PChar) : PChar; varargs;  cdecl;
 Tlua_pushcclosure=  procedure (L : Plua_State; fn : lua_CFunction; n : Integer);  cdecl;
 Tlua_pushboolean=  procedure (L : Plua_State; b : LongBool);  cdecl;
 Tlua_pushlightuserdata=  procedure (L : Plua_State; p : Pointer);  cdecl;
@@ -1119,6 +1119,8 @@ type TLibHandle = PtrInt;
   lua_xmove:Tlua_xmove;
 
   LuaLibD:TLibHandle;
+
+  luaJIT: Boolean;
 {$ENDIF}
 
 implementation
@@ -1144,11 +1146,14 @@ uses
   end;
 
  function LoadLuaLib(filename:string):boolean;
-  begin
-   result:=false;
-   LuaLibD:=LoadLibrary(FileName);
-   result:= (LuaLibD<>0);
-   if LuaLibD=0 then exit;
+ begin
+{$IF DEFINED(UNIX)}
+   LuaLibD:= TLibHandle(dlopen(PAnsiChar(FileName), RTLD_NOW or RTLD_GLOBAL));
+{$ELSE}
+   LuaLibD:= LoadLibrary(FileName);
+{$ENDIF}
+   Result:= (LuaLibD <> NilHandle);
+   if not Result then Exit;
 
   lua_newstate:=Tlua_newstate(GetProcAddress(LuaLibD,'lua_newstate'));
   lua_close:=Tlua_close(GetProcAddress(LuaLibD,'lua_close'));
@@ -1272,7 +1277,8 @@ uses
   lua_replace:=Tlua_replace(GetProcAddress(LuaLibD,'lua_replace'));
   lua_checkstack:=Tlua_checkstack(GetProcAddress(LuaLibD,'lua_checkstack'));
   lua_xmove:=Tlua_xmove(GetProcAddress(LuaLibD,'lua_xmove'));
-  
+
+  luaJIT:= GetProcAddress(LuaLibD, 'luaJIT_setmode') <> nil;
   end;
 
 {$ENDIF}

@@ -27,7 +27,7 @@ unit uFindThread;
 interface
 
 uses
-  Classes, SysUtils, uFindFiles, uFindEx, uFindByrMr, uMasks;
+  Classes, SysUtils, uFindFiles, uFindEx, uFindByrMr, uMasks, uRegExpr;
 
 type
 
@@ -50,6 +50,7 @@ type
     FFilesMasks: TMaskList;
     FExcludeFiles: TMaskList;
     FExcludeDirectories: TMaskList;
+    FRegExpr: TRegExprEx;
 
     FTimeSearchStart:TTime;
     FTimeSearchEnd:TTime;
@@ -62,6 +63,7 @@ type
     function CheckFile(const Folder : String; const sr : TSearchRecEx) : Boolean;
     function CheckDirectory(const CurrentDir, FolderName : String) : Boolean;
     function FindInFile(const sFileName: String;sData: String; bCase, bRegExp: Boolean): Boolean;
+    procedure FileReplaceString(const FileName, SearchString, ReplaceString: string; bCase, bRegExp: Boolean);
 
   protected
     procedure Execute; override;
@@ -87,7 +89,7 @@ implementation
 uses
   LCLProc, StrUtils, LConvEncoding, RegExpr, DCStrUtils,
   uLng, DCClassesUtf8, uFindMmap, uGlobs, uShowMsg, DCOSUtils, uOSUtils,
-  uLog, uWCXmodule, WcxPlugin, Math, uDCUtils, uConvEncoding;
+  uLog, uWCXmodule, WcxPlugin, Math, uDCUtils, uConvEncoding, DCDateTimeUtils;
 
 { TFindThread }
 
@@ -107,6 +109,7 @@ begin
     if IsFindText then
     begin
       TextEncoding := NormalizeEncoding(TextEncoding);
+      if TextRegExp then FRegExpr := TRegExprEx.Create(TextEncoding);
       FindText := ConvertEncoding(FindText, EncodingUTF8, TextEncoding);
       ReplaceText := ConvertEncoding(ReplaceText, EncodingUTF8, TextEncoding);
 
@@ -150,6 +153,7 @@ end;
 destructor TFindThread.Destroy;
 begin
 //  FItems.Add('End');
+  FreeAndNil(FRegExpr);
   FreeAndNil(FFilesMasks);
   FreeAndNil(FExcludeFiles);
   FreeThenNil(FLinkTargets);
@@ -258,7 +262,7 @@ begin
   // Simple regular expression search (don't work for very big files)
   if bRegExp then
   begin
-    fs := TFileStreamEx.Create(sFileName, fmOpenRead or fmShareDenyNone);
+    fs := TFileStreamEx.Create(sFileName, fmOpenRead or fmShareDenyNone or fmOpenNoATime);
     try
       if fs.Size = 0 then Exit;
       {$PUSH}{$R-}
@@ -270,7 +274,7 @@ begin
     finally
       fs.Free;
     end;
-    Exit(ExecRegExpr(sData, S));
+    Exit(FRegExpr.ExecRegExpr(sData, S));
   end;
 
   if gUseMmapInSearch then
@@ -296,7 +300,7 @@ begin
   if sDataLength > BufferSize then
     raise Exception.Create(rsMsgErrSmallBuf);
 
-  fs := TFileStreamEx.Create(sFileName, fmOpenRead or fmShareDenyNone);
+  fs := TFileStreamEx.Create(sFileName, fmOpenRead or fmShareDenyNone or fmOpenNoATime);
   try
     if sDataLength > fs.Size then // string longer than file, cannot search
       Exit;
@@ -361,7 +365,7 @@ begin
   end;
 end;
 
-procedure FileReplaceString(const FileName, SearchString, ReplaceString: string; bCase, bRegExp: Boolean);
+procedure TFindThread.FileReplaceString(const FileName, SearchString, ReplaceString: string; bCase, bRegExp: Boolean);
 var
   S: String;
   fs: TFileStreamEx;
@@ -381,7 +385,7 @@ begin
   end;
 
   if bRegExp then
-    S := ReplaceRegExpr(SearchString, S, replaceString, False)
+    S := FRegExpr.ReplaceRegExpr(SearchString, S, replaceString, True)
   else
     begin
       Include(Flags, rfReplaceAll);
@@ -433,7 +437,7 @@ var
         Exit(False);
 
       if (IsDateFrom or IsDateTo or IsTimeFrom or IsTimeTo or IsNotOlderThan) then
-        Result := CheckFileDateTime(FFileChecks, WcxFileTimeToDateTime(Header));
+        Result := CheckFileDateTime(FFileChecks, WcxFileTimeToDateTime(Header.FileTime));
 
       if (IsFileSizeFrom or IsFileSizeTo) and Result then
         Result := CheckFileSize(FFileChecks, Header.UnpSize);

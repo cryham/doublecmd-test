@@ -30,7 +30,10 @@ interface
 
 uses
   Classes, SysUtils, DCClassesUtf8, Graphics, uFile, uFileSource,
-  DCXmlConfig, uFileFunctions;
+  DCXmlConfig, DCBasicTypes, uFileFunctions;
+
+const
+  FS_GENERAL = '<General>';
 
 type
 
@@ -63,6 +66,8 @@ type
 
     procedure SetFuncString(NewValue: String);
 
+    function GetColumnResultString(AFile: TFile; const AFileSource: IFileSource): String;
+
   public
     //---------------------
     Title: String;
@@ -93,14 +98,6 @@ type
     constructor Create;
     destructor Destroy; override;
 
-    //---------------------
-    function GetColumnResultString(AFile: TFile; const AFileSource: IFileSource): String;
-    {en
-       Converts string functions in the column into their integer values,
-       so that they don't have to be compared by string during sorting.
-       Call this before sorting then pass result to Compare in the sorting loop.
-    }
-    function GetColumnFunctions: TFileFunctions;
     //------------------------------------------------------
     property FuncString: String read FFuncString write SetFuncString;
   end;
@@ -114,6 +111,7 @@ type
     fSetName: String;
 
     // Global settings for columns view.
+    FFileSystem: String;
     FCustomView: Boolean;
     FCursorBorder: Boolean;
     FCursorBorderColor: TColor;
@@ -152,10 +150,18 @@ type
 
     //---------------------
     function GetColumnPrm(const Index: Integer): TColPrm;
-    //---------------------
-    function GetColumnItem(const Index: Integer): TPanelColumn;
+    //--------------------------------------------------------------------------
+    function GetColumnsVariants: TDynamicStringArray;
+    {en
+       Converts string functions in the column into their integer values,
+       so that they don't have to be compared by string during sorting.
+       Call this before sorting then pass result to Compare in the sorting loop.
+    }
+    function GetColumnFunctions(const Index: Integer): TFileFunctions;
     function GetColumnItemResultString(const Index: Integer;
       const AFile: TFile; const AFileSource: IFileSource): String;
+    //--------------------------------------------------------------------------
+    function GetColumnItem(const Index: Integer): TPanelColumn;
     function GetCount: Integer;
     function Add(Item: TPanelColumn): Integer;
     function Add(const Title, FuncString: String; const Width: Integer;
@@ -199,6 +205,7 @@ type
     property CurrentColumnsSetName: String read fSetName write fSetName;
     property SetName: String read fSetName write fSetName;
     property Name: String read fSetName write fSetName;
+    property FileSystem: String read FFileSystem write FFileSystem;
     property UseCursorBorder: boolean read GetCursorBorder write FCursorBorder;
     property CursorBorderColor: TColor read GetCursorBorderColor write FCursorBorderColor;
     property UseFrameCursor: boolean read GetUseFrameCursor write FUseFrameCursor;
@@ -235,7 +242,7 @@ type
 implementation
 
 uses
-  LCLType, Forms, crc, uDebug, uLng, uGlobs;
+  LCLType, Forms, crc, DCStrUtils, uDebug, uLng, uGlobs;
 
 var
   DefaultTitleHash: LongWord = 0;
@@ -450,11 +457,80 @@ begin
   Result.Overcolor := GetColumnOvercolor(Index);
 end;
 
+function TPanelColumnsClass.GetColumnsVariants: TDynamicStringArray;
+var
+  I, J: Integer;
+begin
+  for J:= 0 to Flist.Count - 1 do
+  begin
+    with TPanelColumn(Flist[J]) do
+    begin
+      if Assigned(FuncList) and (FuncList.Count > 0) then
+      begin
+        for I := 0 to FuncList.Count - 1 do
+        begin
+          // Don't need to compare simple text, only functions.
+          if PtrInt(FuncList.Objects[I]) = 1 then
+          begin
+            if GetFileFunctionByName(FuncList.Strings[I]) = fsfVariant then
+              AddString(Result, FuncList.Strings[I]);
+          end;
+        end;
+      end;
+    end;
+  end;
+end;
+
 function TPanelColumnsClass.GetColumnItem(const Index: Integer): TPanelColumn;
 begin
   if Index >= Flist.Count then
     Exit(nil);
   Result := TPanelColumn(Flist[Index]);
+end;
+
+function TPanelColumnsClass.GetColumnFunctions(const Index: Integer): TFileFunctions;
+var
+  FuncCount: Integer = 0;
+  i, J: Integer;
+  Value: TFileFunction;
+  VariantIndex: Integer = 0;
+begin
+  for J:= 0 to Index do
+  with TPanelColumn(Flist[J]) do
+  begin
+    if Assigned(FuncList) and (FuncList.Count > 0) then
+    begin
+      SetLength(Result, FuncList.Count); // Start with all strings.
+
+      for i := 0 to FuncList.Count - 1 do
+      begin
+        // Don't need to compare simple text, only functions.
+        if PtrInt(FuncList.Objects[i]) = 1 then
+          begin
+            Value := GetFileFunctionByName(FuncList.Strings[i]);
+
+            if Value = fsfVariant then
+            begin
+              Value := TFileFunction(Ord(fsfVariant) + VariantIndex);
+              Inc(VariantIndex);
+            end;
+
+            if (J = Index) then
+            begin
+              Result[FuncCount] := Value;
+
+              // If the function was found, save it's number.
+              if Result[FuncCount] <> fsfInvalid then
+                FuncCount := FuncCount + 1;
+            end;
+          end;
+      end;
+
+      SetLength(Result, FuncCount); // Set the actual functions count.
+    end
+    else
+      SetLength(Result, 0);
+  end;
 end;
 
 function TPanelColumnsClass.GetColumnItemResultString(const Index: Integer;
@@ -521,6 +597,7 @@ begin
     Exit;
 
   Name := OtherColumnsClass.Name;
+  FFileSystem := OtherColumnsClass.FFileSystem;
   FCustomView := OtherColumnsClass.FCustomView;
   FCursorBorder := OtherColumnsClass.FCursorBorder;
   FCursorBorderColor := OtherColumnsClass.FCursorBorderColor;
@@ -742,6 +819,7 @@ var
   DCFunc: String;
 begin
   SetName := 'Default';
+  FFileSystem := FS_GENERAL;
   DCFunc := '[' + sFuncTypeDC + '().%s{}]';
   // file name
   Add(rsColName, Format(DCFunc, [TFileFunctionStrings[fsfNameNoExtension]]), 250, taLeftJustify);
@@ -760,7 +838,7 @@ end;
 procedure TPanelColumnsClass.AddDefaultEverything;
 begin
   AddDefaultColumns;
-  FCustomView := True;
+  FCustomView := False;
   FCursorBorder := gUseCursorBorder;
   FCursorBorderColor := gCursorBorderColor;
   FUseFrameCursor := gUseFrameCursor;
@@ -776,6 +854,7 @@ var
   APixelsPerInch: Integer;
 begin
   FCustomView := AConfig.GetValue(ANode, 'CustomView', False);
+  FFileSystem := AConfig.GetValue(ANode, 'FileSystem', FS_GENERAL);
   APixelsPerInch:= AConfig.GetValue(ANode, 'PixelsPerInch', Screen.PixelsPerInch);
   FCursorBorder := AConfig.GetAttr(ANode, 'CursorBorder/Enabled', gUseCursorBorder);
   FCursorBorderColor := TColor(AConfig.GetValue(ANode, 'CursorBorder/Color', gCursorBorderColor));
@@ -847,6 +926,7 @@ var
   AColumn: TPanelColumn;
 begin
   AConfig.SetValue(ANode, 'CustomView', FCustomView);
+  AConfig.SetValue(ANode, 'FileSystem', FFileSystem);
   AConfig.SetValue(ANode, 'PixelsPerInch', Screen.PixelsPerInch);
   AConfig.SetAttr(ANode, 'CursorBorder/Enabled', FCursorBorder);
   if FCursorBorderColor <> clNone then
@@ -960,36 +1040,8 @@ begin
   inherited Destroy;
 end;
 
-function TPanelColumn.GetColumnFunctions: TFileFunctions;
-var
-  FuncCount: Integer = 0;
-  i: Integer;
-begin
-  if Assigned(FuncList) and (FuncList.Count > 0) then
-  begin
-    SetLength(Result, FuncList.Count); // Start with all strings.
 
-    for i := 0 to FuncList.Count - 1 do
-    begin
-      // Don't need to compare simple text, only functions.
-      if PtrInt(FuncList.Objects[i]) = 1 then
-        begin
-          Result[FuncCount] := GetFileFunctionByName(FuncList.Strings[i]);
-
-          // If the function was found, save it's number.
-          if Result[FuncCount] <> fsfInvalid then
-            FuncCount := FuncCount + 1;
-        end;
-    end;
-
-    SetLength(Result, FuncCount); // Set the actual functions count.
-  end
-  else
-    SetLength(Result, 0);
-end;
-
-function TPanelColumn.GetColumnResultString(AFile: TFile;
-  const AFileSource: IFileSource): String;
+function TPanelColumn.GetColumnResultString(AFile: TFile; const AFileSource: IFileSource): String;
 var
   i: Integer;
   s: String;

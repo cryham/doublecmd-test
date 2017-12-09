@@ -72,6 +72,7 @@ type
     destructor Destroy; override;
 
     procedure Click; override;
+    procedure DblClick; override;
     procedure UpdateHeader;
     procedure UpdateSorting(Sorting: TFileSortings);
   end;
@@ -113,10 +114,14 @@ begin
         NewPath:= NormalizePathDelimiters(FPathEdit.Text);
         NewPath:= ReplaceEnvVars(ReplaceTilde(NewPath));
         if not mbFileExists(NewPath) then
-          ChooseFileSource(FFileView, NewPath, True)
+          begin
+            if not ChooseFileSource(FFileView, NewPath, True) then
+              Exit;
+          end
         else
           begin
-            ChooseFileSource(FFileView, ExtractFileDir(NewPath));
+            if not ChooseFileSource(FFileView, ExtractFileDir(NewPath)) then
+              Exit;
             FFileView.SetActiveFile(ExtractFileName(NewPath));
           end;
         FPathEdit.Visible := False;
@@ -134,7 +139,7 @@ end;
 
 procedure TFileViewHeader.PathLabelClick(Sender: TObject);
 var
-  walkPath, dirNameToSelect: String;
+  walkPath, selectedDir, dirNameToSelect: String;
 begin
   FFileView.SetFocus;
 
@@ -142,9 +147,10 @@ begin
   begin
     // User clicked on a subdirectory of the path.
     walkPath := FFileView.CurrentPath;
-    FFileView.CurrentPath := FPathLabel.SelectedDir;
+    selectedDir := FPathLabel.SelectedDir;
+    FFileView.CurrentPath := selectedDir;
 
-    while (Length(walkPath) > Length(FPathLabel.SelectedDir) + 1) do
+    while (Length(walkPath) > Length(selectedDir) + 1) do
     begin
       dirNameToSelect := ExtractFileName(ExcludeTrailingPathDelimiter(walkPath));
       walkPath := FFileView.FileSource.GetParentDir(walkPath);
@@ -433,6 +439,11 @@ begin
     if Index <> -1 then
       SectionClick(Sections[Index]);
   end;
+end;
+
+procedure TFileViewFixedHeader.DblClick;
+begin
+  Click;
 end;
 
 procedure TFileViewFixedHeader.UpdateHeader;

@@ -3,7 +3,7 @@
   -------------------------------------------------------------------------
   SevenZip archiver plugin
 
-  Copyright (C) 2014-2015 Alexander Koblov (alexx2000@mail.ru)
+  Copyright (C) 2014-2017 Alexander Koblov (alexx2000@mail.ru)
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -49,7 +49,7 @@ implementation
 
 uses
   JwaWinBase, Windows, SysUtils, Classes, JclCompression, SevenZip, SevenZipAdv,
-  SevenZipDlg, SevenZipLng, SevenZipOpt, LazFileUtils, SyncObjs, LazUTF8;
+  SevenZipDlg, SevenZipLng, SevenZipOpt, LazFileUtils, SyncObjs, LazUTF8, SevenZipCodecs;
 
 type
 
@@ -193,6 +193,9 @@ begin
     HeaderData.PackSizeHigh:= Int64Rec(Item.PackedSize).Hi;
     HeaderData.FileAttr:= Item.Attributes;
     WinToDosTime(Item.LastWriteTime, LongWord(HeaderData.FileTime));
+    if Item.Encrypted then begin
+      HeaderData.Flags:= RHDF_ENCRYPTED;
+    end;
     // Special case for absolute file name
     if (Length(FileNameW) > 0) and (FileNameW[1] = PathDelim) then
       HeaderData.FileName:= Copy(FileNameW, 2, Length(FileNameW) - 1)
@@ -472,8 +475,9 @@ begin
   // Don't process PE files as archives
   GetArchiveFormats.UnregisterFormat(TJclPeDecompressArchive);
   // Try to load 7z.dll
-  if not (Is7ZipLoaded or Load7Zip) then
-  begin
+  if (Is7ZipLoaded or Load7Zip) then
+    LoadLibraries
+  else begin
     MessageBoxW(0, PWideChar(UTF8Decode(rsSevenZipLoadError)), 'SevenZip', MB_OK or MB_ICONERROR);
   end;
 end;

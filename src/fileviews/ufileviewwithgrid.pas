@@ -19,6 +19,9 @@ type
   protected
     FFileView: TFileViewWithGrid;
   protected
+    {$IF lcl_fullversion < 1090000}
+    function SelectCell(aCol, aRow: Integer): Boolean; override;
+    {$ENDIF}
     procedure RowHeightsChanged; override;
     procedure ColWidthsChanged;  override;
     procedure FinalizeWnd; override;
@@ -80,7 +83,7 @@ type
     procedure RedrawFile(FileIndex: PtrInt); override;
     procedure RedrawFile(DisplayFile: TDisplayFile); override;
     procedure RedrawFiles; override;
-    procedure SetActiveFile(FileIndex: PtrInt); override;
+    procedure SetActiveFile(FileIndex: PtrInt; ScrollTo: Boolean); override;
     procedure DoFileUpdated(AFile: TDisplayFile; UpdatedProperties: TFilePropertiesTypes = []); override;
     procedure DoHandleKeyDown(var Key: Word; Shift: TShiftState); override;
     procedure UpdateFlatFileName; override;
@@ -164,9 +167,9 @@ end;
 
 procedure TFileViewGrid.DoOnResize;
 begin
-  inherited DoOnResize;
   CalculateColRowCount;
   CalculateColumnWidth;
+  inherited DoOnResize;
 end;
 
 procedure TFileViewGrid.KeyDown(var Key: Word; Shift: TShiftState);
@@ -182,6 +185,20 @@ begin
 {$ENDIF}
   inherited KeyDown(Key, Shift);
 end;
+
+{$IF lcl_fullversion < 1090000}
+// Workaround for Lazarus issue 31942.
+function TFileViewGrid.SelectCell(aCol, aRow: Integer): Boolean;
+begin
+  Result:= inherited SelectCell(aCol, aRow);
+  // ScrollToCell hangs when Width = 0
+  if Width = 0 then
+  begin
+    Result:= False;
+    SetColRow(aCol, aRow);
+  end;
+end;
+{$ENDIF}
 
 procedure TFileViewGrid.RowHeightsChanged;
 begin
@@ -449,6 +466,9 @@ begin
   DoubleBuffered := True;
   Align := alClient;
   MouseWheelOption:= mwGrid;
+{$if lcl_fullversion >= 1080004}
+  AllowOutboundEvents := False;
+{$endif}
   Options := [goTabs, goThumbTracking];
   TabStop := False;
 
@@ -683,13 +703,17 @@ begin
   TabHeader.UpdateSorting(Sorting);
 end;
 
-procedure TFileViewWithGrid.SetActiveFile(FileIndex: PtrInt);
+procedure TFileViewWithGrid.SetActiveFile(FileIndex: PtrInt; ScrollTo: Boolean);
 var
   ACol, ARow: Integer;
 begin
   dgPanel.IndexToCell(FileIndex, ACol, ARow);
-  dgPanel.Col := ACol;
-  dgPanel.Row := ARow;
+  if not ScrollTo then
+    dgPanel.SetColRow(ACol, ARow)
+  else begin
+    dgPanel.MoveExtend(False, ACol, ARow);
+    dgPanel.Click;
+  end;
 end;
 
 procedure TFileViewWithGrid.SetFilesDisplayItems;
