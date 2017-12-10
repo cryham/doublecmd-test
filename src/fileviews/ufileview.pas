@@ -1483,7 +1483,7 @@ end;
 
 procedure TFileView.SetCurrentPath(NewPath: String);
 begin
-  if (NewPath <> CurrentPath) and BeforeChangePath(FileSource, NewPath) then
+  if (NewPath <> CurrentPath) and BeforeChangePath(FileSource, NewPath) and DirectoryExists(NewPath) then
   begin
     FFlatView:= False;
     EnableWatcher(False);
