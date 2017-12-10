@@ -412,7 +412,6 @@ object frmViewer: TfrmViewer
       ParentShowHint = False
       ShowHint = True
       TabOrder = 1
-      OnMouseEnter = PanelEditImageMouseEnter
       object gboxHightlight: TGroupBox
         Left = 435
         Height = 47

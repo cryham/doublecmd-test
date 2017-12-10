@@ -9,11 +9,10 @@ object frmMultiRename: TfrmMultiRename
   OnClose = FormClose
   OnCreate = FormCreate
   OnKeyDown = KeyDownHandler
-  OnShow = FormShow
   Position = poScreenCenter
   SessionProperties = 'Height;Width;WindowState;Left;Top'
   ShowInTaskBar = stAlways
-  LCLVersion = '1.6.2.0'
+  LCLVersion = '1.8.0.5'
   object StringGrid: TStringGrid
     Left = 6
     Height = 450
@@ -87,7 +86,7 @@ object frmMultiRename: TfrmMultiRename
       Constraints.MinWidth = 100
       Default = True
       OnClick = btnRenameClick
-      TabOrder = 9
+      TabOrder = 8
       TabStop = False
     end
     object btnRestore: TButton
@@ -118,7 +117,7 @@ object frmMultiRename: TfrmMultiRename
       Caption = 'Edit'
       OnClick = btnEditClick
       PopupMenu = pmEditDirect
-      TabOrder = 13
+      TabOrder = 14
       TabStop = False
     end
     object lbName: TLabel
@@ -183,7 +182,7 @@ object frmMultiRename: TfrmMultiRename
       Caption = '...'
       OnClick = btnNameMenuClick
       PopupMenu = ppNameMenu
-      TabOrder = 7
+      TabOrder = 15
       TabStop = False
     end
     object btnExtMenu: TButton
@@ -198,7 +197,7 @@ object frmMultiRename: TfrmMultiRename
       Caption = '...'
       OnClick = btnExtMenuClick
       PopupMenu = ppNameMenu
-      TabOrder = 8
+      TabOrder = 7
       TabStop = False
     end
     object cmbNameStyle: TComboBox
@@ -228,7 +227,7 @@ object frmMultiRename: TfrmMultiRename
       ItemHeight = 16
       OnChange = cmbNameStyleChange
       Style = csDropDownList
-      TabOrder = 14
+      TabOrder = 9
       TabStop = False
     end
     object lbFind: TLabel
@@ -280,7 +279,7 @@ object frmMultiRename: TfrmMultiRename
       BorderSpacing.Top = 2
       BorderSpacing.Right = 4
       OnChange = cmbNameStyleChange
-      TabOrder = 12
+      TabOrder = 16
     end
     object cbRegExp: TCheckBox
       AnchorSideTop.Side = asrBottom
@@ -292,7 +291,7 @@ object frmMultiRename: TfrmMultiRename
       BorderSpacing.Top = 10
       Caption = 'Regular e&xpressions'
       OnChange = cbRegExpChange
-      TabOrder = 15
+      TabOrder = 12
       TabStop = False
     end
     object cbUseSubs: TCheckBox
@@ -306,7 +305,7 @@ object frmMultiRename: TfrmMultiRename
       Caption = '&Use substitution'
       Enabled = False
       OnChange = cmbNameStyleChange
-      TabOrder = 16
+      TabOrder = 13
       TabStop = False
     end
     object cbPresets: TComboBox
