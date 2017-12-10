@@ -11,14 +11,14 @@ object frmMaskInputDlg: TfrmMaskInputDlg
   OnCreate = FormCreate
   Position = poScreenCenter
   SessionProperties = 'Height;Width'
-  LCLVersion = '1.6.0.4'
+  LCLVersion = '1.6.2.0'
   object lblPrompt: TLabel
     AnchorSideLeft.Control = Owner
     AnchorSideTop.Control = Owner
     AnchorSideRight.Control = Owner
     AnchorSideRight.Side = asrBottom
     Left = 10
-    Height = 15
+    Height = 16
     Top = 10
     Width = 311
     Anchors = [akTop, akLeft, akRight]
@@ -35,14 +35,14 @@ object frmMaskInputDlg: TfrmMaskInputDlg
     AnchorSideRight.Control = Owner
     AnchorSideRight.Side = asrBottom
     Left = 10
-    Height = 23
-    Top = 25
+    Height = 24
+    Top = 26
     Width = 311
     Anchors = [akTop, akLeft, akRight]
     BorderSpacing.Left = 10
     BorderSpacing.Right = 10
     DropDownCount = 10
-    ItemHeight = 15
+    ItemHeight = 16
     TabOrder = 0
   end
   object chkCaseSensitive: TCheckBox
@@ -50,32 +50,34 @@ object frmMaskInputDlg: TfrmMaskInputDlg
     AnchorSideTop.Control = cmbMask
     AnchorSideTop.Side = asrBottom
     Left = 10
-    Height = 19
-    Top = 50
-    Width = 93
+    Height = 20
+    Top = 52
+    Width = 101
     BorderSpacing.Top = 2
-    Caption = 'Case sensitive'
+    Caption = '&Case sensitive'
     TabOrder = 1
+    TabStop = False
   end
   object chkIgnoreAccentsAndLigatures: TCheckBox
     AnchorSideLeft.Control = cmbMask
     AnchorSideTop.Control = chkCaseSensitive
     AnchorSideTop.Side = asrBottom
     Left = 10
-    Height = 19
-    Top = 69
-    Width = 168
-    Caption = 'Ignore accents and ligatures'
+    Height = 20
+    Top = 72
+    Width = 182
+    Caption = 'I&gnore accents and ligatures'
     TabOrder = 2
+    TabStop = False
   end
   object lblSearchTemplate: TLabel
     AnchorSideLeft.Control = cmbMask
     AnchorSideTop.Control = edtAttrib
     AnchorSideTop.Side = asrBottom
     Left = 10
-    Height = 15
-    Top = 125
-    Width = 185
+    Height = 16
+    Top = 130
+    Width = 203
     BorderSpacing.Top = 10
     Caption = 'O&r select predefined selection type:'
     FocusControl = lbxSearchTemplate
@@ -90,8 +92,8 @@ object frmMaskInputDlg: TfrmMaskInputDlg
     AnchorSideRight.Side = asrBottom
     AnchorSideBottom.Control = btnOK
     Left = 10
-    Height = 116
-    Top = 140
+    Height = 108
+    Top = 146
     Width = 311
     Anchors = [akTop, akLeft, akRight, akBottom]
     BorderSpacing.Left = 10
@@ -110,7 +112,7 @@ object frmMaskInputDlg: TfrmMaskInputDlg
     AnchorSideBottom.Side = asrBottom
     Left = 9
     Height = 30
-    Top = 262
+    Top = 260
     Width = 100
     Anchors = [akTop, akRight, akBottom]
     AutoSize = True
@@ -120,6 +122,7 @@ object frmMaskInputDlg: TfrmMaskInputDlg
     Constraints.MinWidth = 100
     OnClick = btnDefineTemplateClick
     TabOrder = 7
+    TabStop = False
   end
   object btnOK: TBitBtn
     AnchorSideLeft.Side = asrBottom
@@ -128,7 +131,7 @@ object frmMaskInputDlg: TfrmMaskInputDlg
     AnchorSideBottom.Side = asrBottom
     Left = 115
     Height = 30
-    Top = 262
+    Top = 260
     Width = 100
     Anchors = [akRight, akBottom]
     AutoSize = True
@@ -141,6 +144,7 @@ object frmMaskInputDlg: TfrmMaskInputDlg
     Kind = bkOK
     ModalResult = 1
     TabOrder = 8
+    TabStop = False
   end
   object btnCancel: TBitBtn
     AnchorSideRight.Control = lbxSearchTemplate
@@ -149,7 +153,7 @@ object frmMaskInputDlg: TfrmMaskInputDlg
     AnchorSideBottom.Side = asrBottom
     Left = 221
     Height = 30
-    Top = 262
+    Top = 260
     Width = 100
     Anchors = [akRight, akBottom]
     AutoSize = True
@@ -161,15 +165,16 @@ object frmMaskInputDlg: TfrmMaskInputDlg
     Kind = bkCancel
     ModalResult = 2
     TabOrder = 9
+    TabStop = False
   end
   object lblAttributes: TLabel
     AnchorSideLeft.Control = cmbMask
     AnchorSideTop.Control = edtAttrib
     AnchorSideTop.Side = asrCenter
     Left = 13
-    Height = 15
-    Top = 96
-    Width = 55
+    Height = 16
+    Top = 100
+    Width = 60
     BorderSpacing.Left = 3
     BorderSpacing.Top = 8
     Caption = 'Attri&butes:'
@@ -182,10 +187,10 @@ object frmMaskInputDlg: TfrmMaskInputDlg
     AnchorSideTop.Control = chkIgnoreAccentsAndLigatures
     AnchorSideTop.Side = asrBottom
     AnchorSideRight.Control = btnAddAttribute
-    Left = 71
-    Height = 23
-    Top = 92
-    Width = 143
+    Left = 76
+    Height = 24
+    Top = 96
+    Width = 138
     HelpType = htKeyword
     HelpKeyword = '/findfiles.html#attributes'
     Anchors = [akTop, akLeft, akRight]
@@ -194,6 +199,7 @@ object frmMaskInputDlg: TfrmMaskInputDlg
     BorderSpacing.Right = 3
     ParentShowHint = False
     ShowHint = True
+    TabStop = False
     TabOrder = 3
   end
   object btnAddAttribute: TButton
@@ -204,7 +210,7 @@ object frmMaskInputDlg: TfrmMaskInputDlg
     AnchorSideRight.Control = btnAttrsHelp
     Left = 217
     Height = 26
-    Top = 90
+    Top = 95
     Width = 48
     Anchors = [akTop, akRight]
     AutoSize = True
@@ -213,6 +219,7 @@ object frmMaskInputDlg: TfrmMaskInputDlg
     Constraints.MinHeight = 26
     OnClick = btnAddAttributeClick
     TabOrder = 4
+    TabStop = False
   end
   object btnAttrsHelp: TButton
     AnchorSideLeft.Side = asrBottom
@@ -222,8 +229,8 @@ object frmMaskInputDlg: TfrmMaskInputDlg
     AnchorSideRight.Side = asrBottom
     AnchorSideBottom.Side = asrBottom
     Left = 268
-    Height = 27
-    Top = 90
+    Height = 28
+    Top = 94
     Width = 53
     Anchors = [akTop, akRight]
     AutoSize = True
@@ -233,5 +240,6 @@ object frmMaskInputDlg: TfrmMaskInputDlg
     Constraints.MinHeight = 26
     OnClick = btnAttrsHelpClick
     TabOrder = 5
+    TabStop = False
   end
 end
