@@ -1010,6 +1010,7 @@ msgid "Redo"
 msgstr "Opakovať"
 
 #: tfrmeditor.acteditrplc.caption
+msgctxt "tfrmeditor.acteditrplc.caption"
 msgid "&Replace"
 msgstr "&Nahradiť"
 
@@ -3892,6 +3893,7 @@ msgstr "Prípona"
 #: tfrmmultirename.lbfind.caption
 #, fuzzy
 #| msgid "&Find..."
+msgctxt "tfrmmultirename.lbfind.caption"
 msgid "&Find"
 msgstr "Hľadať..."
 
@@ -3914,6 +3916,7 @@ msgstr ""
 #: tfrmmultirename.lbreplace.caption
 #, fuzzy
 #| msgid "Re&place..."
+msgctxt "tfrmmultirename.lbreplace.caption"
 msgid "&Replace"
 msgstr "Nahradiť..."
 

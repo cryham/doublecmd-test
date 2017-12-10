@@ -947,6 +947,7 @@ msgid "Redo"
 msgstr "Понови"
 
 #: tfrmeditor.acteditrplc.caption
+msgctxt "tfrmeditor.acteditrplc.caption"
 msgid "&Replace"
 msgstr "&Замени"
 
@@ -3634,6 +3635,7 @@ msgstr "Наставци&"
 #: tfrmmultirename.lbfind.caption
 #, fuzzy
 #| msgid "&Find..."
+msgctxt "tfrmmultirename.lbfind.caption"
 msgid "&Find"
 msgstr "Пронађи&..."
 
@@ -3654,6 +3656,7 @@ msgstr ""
 #: tfrmmultirename.lbreplace.caption
 #, fuzzy
 #| msgid "Re&place..."
+msgctxt "tfrmmultirename.lbreplace.caption"
 msgid "&Replace"
 msgstr "Замени&..."
 

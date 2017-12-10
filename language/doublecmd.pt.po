@@ -931,6 +931,7 @@ msgid "Redo"
 msgstr "Refazer"
 
 #: tfrmeditor.acteditrplc.caption
+msgctxt "tfrmeditor.acteditrplc.caption"
 msgid "&Replace"
 msgstr "Substitui&r"
 
@@ -3613,6 +3614,7 @@ msgstr "&Extensão"
 #: tfrmmultirename.lbfind.caption
 #, fuzzy
 #| msgid "&Find..."
+msgctxt "tfrmmultirename.lbfind.caption"
 msgid "&Find"
 msgstr "&Localizar"
 
@@ -3633,6 +3635,7 @@ msgstr ""
 #: tfrmmultirename.lbreplace.caption
 #, fuzzy
 #| msgid "Re&place..."
+msgctxt "tfrmmultirename.lbreplace.caption"
 msgid "&Replace"
 msgstr "Su&bstituir..."
 

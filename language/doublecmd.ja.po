@@ -930,6 +930,7 @@ msgid "Redo"
 msgstr "やり直し"
 
 #: tfrmeditor.acteditrplc.caption
+msgctxt "tfrmeditor.acteditrplc.caption"
 msgid "&Replace"
 msgstr "置換(&R)"
 
@@ -3584,6 +3585,7 @@ msgstr "拡張子(&E)"
 #: tfrmmultirename.lbfind.caption
 #, fuzzy
 #| msgid "&Find..."
+msgctxt "tfrmmultirename.lbfind.caption"
 msgid "&Find"
 msgstr "検索(&F)…"
 
@@ -3604,6 +3606,7 @@ msgstr ""
 #: tfrmmultirename.lbreplace.caption
 #, fuzzy
 #| msgid "Re&place..."
+msgctxt "tfrmmultirename.lbreplace.caption"
 msgid "&Replace"
 msgstr "置き換え(&p)…"
 

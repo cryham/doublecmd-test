@@ -910,6 +910,7 @@ msgid "Redo"
 msgstr "Opnieuw uitvoeren"
 
 #: tfrmeditor.acteditrplc.caption
+msgctxt "tfrmeditor.acteditrplc.caption"
 msgid "&Replace"
 msgstr "Vervangen"
 
@@ -3518,6 +3519,7 @@ msgstr "Extensie"
 #: tfrmmultirename.lbfind.caption
 #, fuzzy
 #| msgid "&Find..."
+msgctxt "tfrmmultirename.lbfind.caption"
 msgid "&Find"
 msgstr "Zoeken..."
 
@@ -3538,6 +3540,7 @@ msgstr ""
 #: tfrmmultirename.lbreplace.caption
 #, fuzzy
 #| msgid "Re&place..."
+msgctxt "tfrmmultirename.lbreplace.caption"
 msgid "&Replace"
 msgstr "Vervangen..."
 

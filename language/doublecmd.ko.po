@@ -930,6 +930,7 @@ msgid "Redo"
 msgstr "재실행"
 
 #: tfrmeditor.acteditrplc.caption
+msgctxt "tfrmeditor.acteditrplc.caption"
 msgid "&Replace"
 msgstr "바꾸기(&R)"
 
@@ -3610,6 +3611,7 @@ msgstr "확장자(&E)"
 #: tfrmmultirename.lbfind.caption
 #, fuzzy
 #| msgid "&Find..."
+msgctxt "tfrmmultirename.lbfind.caption"
 msgid "&Find"
 msgstr "찾기(&F)..."
 
@@ -3630,6 +3632,7 @@ msgstr ""
 #: tfrmmultirename.lbreplace.caption
 #, fuzzy
 #| msgid "Re&place..."
+msgctxt "tfrmmultirename.lbreplace.caption"
 msgid "&Replace"
 msgstr "바꾸기(&P)..."
 

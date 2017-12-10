@@ -996,6 +996,7 @@ msgid "Redo"
 msgstr "重做"
 
 #: tfrmeditor.acteditrplc.caption
+msgctxt "tfrmeditor.acteditrplc.caption"
 msgid "&Replace"
 msgstr "取代 (&R)"
 
@@ -3784,6 +3785,7 @@ msgstr "副檔名 (&E)"
 #: tfrmmultirename.lbfind.caption
 #, fuzzy
 #| msgid "&Find..."
+msgctxt "tfrmmultirename.lbfind.caption"
 msgid "&Find"
 msgstr "尋找 (&F)"
 
@@ -3806,6 +3808,7 @@ msgstr ""
 #: tfrmmultirename.lbreplace.caption
 #, fuzzy
 #| msgid "Re&place..."
+msgctxt "tfrmmultirename.lbreplace.caption"
 msgid "&Replace"
 msgstr "取代 (&P)"
 

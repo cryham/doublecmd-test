@@ -932,6 +932,7 @@ msgid "Redo"
 msgstr "Refă ultima acțiune"
 
 #: tfrmeditor.acteditrplc.caption
+msgctxt "tfrmeditor.acteditrplc.caption"
 msgid "&Replace"
 msgstr "Înlocui&re"
 
@@ -3586,6 +3587,7 @@ msgstr "&Extensie"
 #: tfrmmultirename.lbfind.caption
 #, fuzzy
 #| msgid "&Find..."
+msgctxt "tfrmmultirename.lbfind.caption"
 msgid "&Find"
 msgstr "Găsește (&f)..."
 
@@ -3606,6 +3608,7 @@ msgstr ""
 #: tfrmmultirename.lbreplace.caption
 #, fuzzy
 #| msgid "Re&place..."
+msgctxt "tfrmmultirename.lbreplace.caption"
 msgid "&Replace"
 msgstr "Înlocuiește (&p)..."
 
