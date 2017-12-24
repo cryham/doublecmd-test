@@ -3048,7 +3048,7 @@ begin
 
                   aPath := mbExpandFileName(aPath);
 
-                  if DirectoryExists(aPath) then
+                  if Assigned(ActiveFrame.FileSource) or DirectoryExists(aPath) then
                     ChooseFileSource(ActiveFrame, aPath);
 
                   if (not isCTRLDown) then //We don't change target folder if CTRL key is pressed
@@ -3069,7 +3069,7 @@ begin
 
                         aPath := mbExpandFileName(aPath);
 
-                        if DirectoryExists(aPath) then
+                        if Assigned(NotActiveFrame.FileSource) or DirectoryExists(aPath) then
                           ChooseFileSource(NotActiveFrame, aPath);
                       end;
                   end;
