@@ -46,13 +46,13 @@ type
     procedure FormCreate(Sender: TObject);
   private
     FFileSource: IFileSource;
-    FWaitData: TEditorWaitData;
+    FWaitData: TWaitData;
   public
     constructor Create(TheOwner: TComponent; aFileSource: IFileSource; const FileName, FromPath: String); reintroduce;
     destructor Destroy; override;
   end; 
 
-  procedure ShowFileEditExternal(aWaitData: TEditorWaitData);
+  procedure ShowFileEditExternal(const FileName, FromPath: string; aWaitData: TWaitData);
   function ShowFileExecuteYourSelf(aFileView: TFileView; aFile: TFile; bWithAll: Boolean): Boolean;
 
 implementation
@@ -60,15 +60,12 @@ implementation
 {$R *.lfm}
 
 uses
-  LCLProc, uTempFileSystemFileSource, uFileSourceOperation, uShellExecute, DCOSUtils;
+  DCOSUtils, DCStrUtils, uTempFileSystemFileSource, uFileSourceOperation, uShellExecute;
 
-procedure ShowFileEditExternal(aWaitData: TEditorWaitData);
-var
-  APath: String;
+procedure ShowFileEditExternal(const FileName, FromPath: string; aWaitData: TWaitData);
 begin
-  APath:= aWaitData.TargetFileSource.CurrentAddress + aWaitData.TargetPath;
   // Create wait window
-  with TfrmFileExecuteYourSelf.Create(Application, nil, ExtractFileName(aWaitData.FileName), APath) do
+  with TfrmFileExecuteYourSelf.Create(Application, nil, FileName, FromPath) do
   begin
     FWaitData:= aWaitData;
     // Show wait window
@@ -89,7 +86,7 @@ begin
     TempFileSource:= TTempFileSystemFileSource.GetFileSource;
     if bWithAll then
       begin
-        FileName:= TempFileSource.FileSystemRoot + aFile.FullPath;
+        FileName:= TempFileSource.FileSystemRoot + ExcludeFrontPathDelimiter(aFile.FullPath);
         TempFiles:= aFileView.FileSource.GetFiles(aFileView.FileSource.GetRootDir);
       end
     else
@@ -113,15 +110,15 @@ begin
       Show;
       // Save current directory
       CurrentDir:= mbGetCurrentDir;
-      Result:= ShellExecuteEx('open', FileName, TempFileSource.FileSystemRoot + aFile.Path);
+      Result:= ShellExecuteEx('open', FileName, TempFileSource.FileSystemRoot + ExcludeFrontPathDelimiter(aFile.Path));
       // Restore current directory
       mbSetCurrentDir(CurrentDir);
       // If file can not be opened then close wait window
       if not Result then Close;
     end;
   finally
-    FreeThenNil(Operation);
-    FreeThenNil(TempFiles);
+    FreeAndNil(Operation);
+    FreeAndNil(TempFiles);
   end;
 end;
 
@@ -155,7 +152,7 @@ begin
   // Delete the temporary file source and all files inside.
   FFileSource:= nil;
   inherited Destroy;
-  if Assigned(FWaitData) then EditDone(FWaitData);
+  if Assigned(FWaitData) then FWaitData.Done;
 end;
 
 end.

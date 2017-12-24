@@ -441,8 +441,8 @@ begin
     Result:=StringReplace(Result,edFind.Text,edReplace.Text,[rfReplaceAll,rfIgnoreCase]);
 
   // File name style
-  sTmpName := ExtractOnlyFileName(Result);
   sTmpExt  := ExtractFileExt(Result);
+  sTmpName := Copy(Result, 1, Length(Result) - Length(sTmpExt));
 
   sTmpName := ApplyStyle(sTmpName, cmbNameStyle.ItemIndex);
   sTmpExt  := ApplyStyle(sTmpExt, cmbExtensionStyle.ItemIndex);
@@ -1046,7 +1046,9 @@ begin
         K:= 1;
         while J >= 0 do
         begin
-          NewName:= FFiles[I].Path + AFile.NameNoExt + ' (' + IntToStr(K) + ')' + ExtensionSeparator + AFile.Extension;
+          NewName:= FFiles[I].Path + AFile.NameNoExt + ' (' + IntToStr(K) + ')';
+          if AFile.Extension <> '' then
+            NewName:= NewName + ExtensionSeparator + AFile.Extension;
           J:= FNewNames.Find(NewName);
           Inc(K);
         end;
