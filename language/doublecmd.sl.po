@@ -1741,16 +1741,6 @@ msgstr "Odstrani s seznama"
 msgid "&Result"
 msgstr "&Rezultat"
 
-#: tfrmfinddlg.miseparator1.caption
-msgctxt "TFRMFINDDLG.MISEPARATOR1.CAPTION"
-msgid "-"
-msgstr "-"
-
-#: tfrmfinddlg.miseparator2.caption
-msgctxt "TFRMFINDDLG.MISEPARATOR2.CAPTION"
-msgid "-"
-msgstr "-"
-
 #: tfrmfinddlg.mishowallfound.caption
 msgid "Show all found items"
 msgstr "Pokaži vse najdene predmete"
@@ -1788,6 +1778,26 @@ msgstr "Rezultati"
 #: tfrmfinddlg.tsstandard.caption
 msgid "Standard"
 msgstr "Običajno"
+
+#: tfrmfinddlg.zvdatefrom.textfornulldate
+msgctxt "tfrmfinddlg.zvdatefrom.textfornulldate"
+msgid "NULL"
+msgstr ""
+
+#: tfrmfinddlg.zvdateto.textfornulldate
+msgctxt "tfrmfinddlg.zvdateto.textfornulldate"
+msgid "NULL"
+msgstr ""
+
+#: tfrmfinddlg.zvtimefrom.textfornulldate
+msgctxt "tfrmfinddlg.zvtimefrom.textfornulldate"
+msgid "NULL"
+msgstr ""
+
+#: tfrmfinddlg.zvtimeto.textfornulldate
+msgctxt "tfrmfinddlg.zvtimeto.textfornulldate"
+msgid "NULL"
+msgstr ""
 
 #: tfrmfindview.btnclose.caption
 msgctxt "TFRMFINDVIEW.BTNCLOSE.CAPTION"
@@ -8779,31 +8789,6 @@ msgctxt "TFRMVIEWER.MIABOUT.CAPTION"
 msgid "About"
 msgstr "O programu"
 
-#: tfrmviewer.midiv1.caption
-msgctxt "TFRMVIEWER.MIDIV1.CAPTION"
-msgid "-"
-msgstr "-"
-
-#: tfrmviewer.midiv2.caption
-msgctxt "TFRMVIEWER.MIDIV2.CAPTION"
-msgid "-"
-msgstr "-"
-
-#: tfrmviewer.midiv3.caption
-msgctxt "TFRMVIEWER.MIDIV3.CAPTION"
-msgid "-"
-msgstr "-"
-
-#: tfrmviewer.midiv4.caption
-msgctxt "TFRMVIEWER.MIDIV4.CAPTION"
-msgid "-"
-msgstr "-"
-
-#: tfrmviewer.midiv5.caption
-msgctxt "TFRMVIEWER.MIDIV5.CAPTION"
-msgid "-"
-msgstr "-"
-
 #: tfrmviewer.miedit.caption
 msgctxt "TFRMVIEWER.MIEDIT.CAPTION"
 msgid "&Edit"
@@ -8835,11 +8820,6 @@ msgstr "Zavrti"
 msgctxt "tfrmviewer.miscreenshot.caption"
 msgid "Screenshot"
 msgstr "Zaslonski posnetek"
-
-#: tfrmviewer.miseparator.caption
-msgctxt "TFRMVIEWER.MISEPARATOR.CAPTION"
-msgid "-"
-msgstr "-"
 
 #: tfrmviewer.miview.caption
 msgctxt "TFRMVIEWER.MIVIEW.CAPTION"
@@ -10732,6 +10712,14 @@ msgstr "Uporabniško ime:"
 #: ulng.rsmsgusernamefirewall
 msgid "User name (Firewall):"
 msgstr "Uporabniško ime (požarni zid):"
+
+#: ulng.rsmsgverify
+msgid "VERIFICATION:"
+msgstr ""
+
+#: ulng.rsmsgverifywrong
+msgid "The target file is corrupted, checksum mismatch!"
+msgstr ""
 
 #: ulng.rsmsgvolumelabel
 msgid "Volume label:"

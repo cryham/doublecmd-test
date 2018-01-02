@@ -1738,16 +1738,6 @@ msgstr "Odebrat ze seznamu"
 msgid "&Result"
 msgstr "&Výsledek"
 
-#: tfrmfinddlg.miseparator1.caption
-msgctxt "tfrmfinddlg.miseparator1.caption"
-msgid "-"
-msgstr "-"
-
-#: tfrmfinddlg.miseparator2.caption
-msgctxt "tfrmfinddlg.miseparator2.caption"
-msgid "-"
-msgstr "-"
-
 #: tfrmfinddlg.mishowallfound.caption
 msgid "Show all found items"
 msgstr "Zobrazit všechny nalezené položky"
@@ -1785,6 +1775,26 @@ msgstr "Výsledky"
 #: tfrmfinddlg.tsstandard.caption
 msgid "Standard"
 msgstr "Standard"
+
+#: tfrmfinddlg.zvdatefrom.textfornulldate
+msgctxt "tfrmfinddlg.zvdatefrom.textfornulldate"
+msgid "NULL"
+msgstr ""
+
+#: tfrmfinddlg.zvdateto.textfornulldate
+msgctxt "tfrmfinddlg.zvdateto.textfornulldate"
+msgid "NULL"
+msgstr ""
+
+#: tfrmfinddlg.zvtimefrom.textfornulldate
+msgctxt "tfrmfinddlg.zvtimefrom.textfornulldate"
+msgid "NULL"
+msgstr ""
+
+#: tfrmfinddlg.zvtimeto.textfornulldate
+msgctxt "tfrmfinddlg.zvtimeto.textfornulldate"
+msgid "NULL"
+msgstr ""
 
 #: tfrmfindview.btnclose.caption
 msgctxt "TFRMFINDVIEW.BTNCLOSE.CAPTION"
@@ -8776,31 +8786,6 @@ msgctxt "TFRMVIEWER.MIABOUT.CAPTION"
 msgid "About"
 msgstr "O programu"
 
-#: tfrmviewer.midiv1.caption
-msgctxt "TFRMVIEWER.MIDIV1.CAPTION"
-msgid "-"
-msgstr "-"
-
-#: tfrmviewer.midiv2.caption
-msgctxt "TFRMVIEWER.MIDIV2.CAPTION"
-msgid "-"
-msgstr "-"
-
-#: tfrmviewer.midiv3.caption
-msgctxt "TFRMVIEWER.MIDIV3.CAPTION"
-msgid "-"
-msgstr "-"
-
-#: tfrmviewer.midiv4.caption
-msgctxt "TFRMVIEWER.MIDIV4.CAPTION"
-msgid "-"
-msgstr "-"
-
-#: tfrmviewer.midiv5.caption
-msgctxt "TFRMVIEWER.MIDIV5.CAPTION"
-msgid "-"
-msgstr "-"
-
 #: tfrmviewer.miedit.caption
 msgctxt "TFRMVIEWER.MIEDIT.CAPTION"
 msgid "&Edit"
@@ -8832,11 +8817,6 @@ msgstr "Otočit"
 msgctxt "TFRMVIEWER.MISCREENSHOT.CAPTION"
 msgid "Screenshot"
 msgstr "Snímek obrazovky"
-
-#: tfrmviewer.miseparator.caption
-msgctxt "TFRMVIEWER.MISEPARATOR.CAPTION"
-msgid "-"
-msgstr "-"
 
 #: tfrmviewer.miview.caption
 msgctxt "TFRMVIEWER.MIVIEW.CAPTION"
@@ -10731,6 +10711,14 @@ msgstr "Jméno uživatele:"
 #: ulng.rsmsgusernamefirewall
 msgid "User name (Firewall):"
 msgstr "Uživatelské jméno (firewall):"
+
+#: ulng.rsmsgverify
+msgid "VERIFICATION:"
+msgstr ""
+
+#: ulng.rsmsgverifywrong
+msgid "The target file is corrupted, checksum mismatch!"
+msgstr ""
 
 #: ulng.rsmsgvolumelabel
 msgid "Volume label:"

@@ -1799,18 +1799,6 @@ msgstr "Уклони са списка"
 msgid "&Result"
 msgstr ""
 
-#: tfrmfinddlg.miseparator1.caption
-#, fuzzy
-msgctxt "tfrmfinddlg.miseparator1.caption"
-msgid "-"
-msgstr "-"
-
-#: tfrmfinddlg.miseparator2.caption
-#, fuzzy
-msgctxt "tfrmfinddlg.miseparator2.caption"
-msgid "-"
-msgstr "-"
-
 #: tfrmfinddlg.mishowallfound.caption
 msgid "Show all found items"
 msgstr "Прикажи све пронађене ставке"
@@ -1849,6 +1837,26 @@ msgstr "Излази"
 #: tfrmfinddlg.tsstandard.caption
 msgid "Standard"
 msgstr "Обично"
+
+#: tfrmfinddlg.zvdatefrom.textfornulldate
+msgctxt "tfrmfinddlg.zvdatefrom.textfornulldate"
+msgid "NULL"
+msgstr ""
+
+#: tfrmfinddlg.zvdateto.textfornulldate
+msgctxt "tfrmfinddlg.zvdateto.textfornulldate"
+msgid "NULL"
+msgstr ""
+
+#: tfrmfinddlg.zvtimefrom.textfornulldate
+msgctxt "tfrmfinddlg.zvtimefrom.textfornulldate"
+msgid "NULL"
+msgstr ""
+
+#: tfrmfinddlg.zvtimeto.textfornulldate
+msgctxt "tfrmfinddlg.zvtimeto.textfornulldate"
+msgid "NULL"
+msgstr ""
 
 #: tfrmfindview.btnclose.caption
 msgctxt "TFRMFINDVIEW.BTNCLOSE.CAPTION"
@@ -9295,31 +9303,6 @@ msgctxt "TFRMVIEWER.MIABOUT.CAPTION"
 msgid "About"
 msgstr "О програму"
 
-#: tfrmviewer.midiv1.caption
-msgctxt "TFRMVIEWER.MIDIV1.CAPTION"
-msgid "-"
-msgstr "-"
-
-#: tfrmviewer.midiv2.caption
-msgctxt "TFRMVIEWER.MIDIV2.CAPTION"
-msgid "-"
-msgstr "-"
-
-#: tfrmviewer.midiv3.caption
-msgctxt "TFRMVIEWER.MIDIV3.CAPTION"
-msgid "-"
-msgstr "-"
-
-#: tfrmviewer.midiv4.caption
-msgctxt "TFRMVIEWER.MIDIV4.CAPTION"
-msgid "-"
-msgstr "-"
-
-#: tfrmviewer.midiv5.caption
-msgctxt "TFRMVIEWER.MIDIV5.CAPTION"
-msgid "-"
-msgstr "-"
-
 #: tfrmviewer.miedit.caption
 msgctxt "TFRMVIEWER.MIEDIT.CAPTION"
 msgid "&Edit"
@@ -9352,11 +9335,6 @@ msgstr "Обрни"
 msgctxt "TFRMVIEWER.MISCREENSHOT.CAPTION"
 msgid "Screenshot"
 msgstr "Слика екрана"
-
-#: tfrmviewer.miseparator.caption
-msgctxt "TFRMVIEWER.MISEPARATOR.CAPTION"
-msgid "-"
-msgstr "-"
 
 #: tfrmviewer.miview.caption
 msgctxt "TFRMVIEWER.MIVIEW.CAPTION"
