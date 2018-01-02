@@ -1305,6 +1305,7 @@ end;"/>
       <Unit167>
         <Filename Value="filesources\vfs\uvfsfilesource.pas"/>
         <IsPartOfProject Value="True"/>
+        <UnitName Value="uVfsFileSource"/>
       </Unit167>
       <Unit168>
         <Filename Value="filesources\vfs\uvfslistoperation.pas"/>

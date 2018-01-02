@@ -3018,6 +3018,7 @@ var
   PosFirstSpace: integer;
   Editor: TOptionsEditor;
   Options: IOptionsDialog;
+  //isrc: IFileSource;
 begin
   // This handler is used by HotDir AND SpecialDir.
   // HotDirs AND SpecialDirs are only supported by filesystem.
@@ -3049,7 +3050,7 @@ begin
 
                   aPath := mbExpandFileName(aPath);
 
-                  if Assigned(ActiveFrame.FileSource) or DirectoryExists(aPath) then
+                  if DirectoryExists(aPath) then
                     ChooseFileSource(ActiveFrame, aPath);
 
                   if (not isCTRLDown) then //We don't change target folder if CTRL key is pressed
