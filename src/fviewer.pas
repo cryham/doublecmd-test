@@ -587,6 +587,13 @@ begin
     pnlPreview.Visible:= False;
   end;
 {$ENDIF}
+  with ViewerControl do
+    begin
+      Color:= gBookBackgroundColor;
+      Font.Color:= gBookFontColor; //clWindowText;
+      Font.Quality:= fqAntialiased;
+      ColCount:= 1;
+    end;
 end;
 
 procedure TfrmViewer.GifAnimMouseDown(Sender: TObject; Button: TMouseButton;

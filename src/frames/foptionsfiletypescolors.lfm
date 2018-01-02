@@ -4,8 +4,8 @@ inherited frmOptionsFileTypesColors: TfrmOptionsFileTypesColors
   AutoSize = True
   ClientHeight = 356
   ClientWidth = 759
-  DesignLeft = 378
-  DesignTop = 92
+  DesignLeft = 436
+  DesignTop = 223
   object gbFileTypesColors: TGroupBox[0]
     AnchorSideRight.Side = asrBottom
     AnchorSideBottom.Side = asrBottom
@@ -21,16 +21,16 @@ inherited frmOptionsFileTypesColors: TfrmOptionsFileTypesColors
     BorderSpacing.Bottom = 8
     Caption = 'File types colors (sort by drag&&drop)'
     ChildSizing.LeftRightSpacing = 8
-    ClientHeight = 326
+    ClientHeight = 325
     ClientWidth = 739
     TabOrder = 0
     object lblCategoryName: TLabel
       AnchorSideTop.Control = edtCategoryName
       AnchorSideTop.Side = asrCenter
       Left = 8
-      Height = 15
-      Top = 163
-      Width = 84
+      Height = 16
+      Top = 159
+      Width = 92
       Caption = 'Category &name:'
       FocusControl = edtCategoryName
       ParentColor = False
@@ -39,9 +39,9 @@ inherited frmOptionsFileTypesColors: TfrmOptionsFileTypesColors
       AnchorSideTop.Control = edtCategoryMask
       AnchorSideTop.Side = asrCenter
       Left = 8
-      Height = 15
-      Top = 194
-      Width = 82
+      Height = 16
+      Top = 191
+      Width = 90
       Caption = 'Category &mask:'
       FocusControl = edtCategoryMask
       ParentColor = False
@@ -50,9 +50,9 @@ inherited frmOptionsFileTypesColors: TfrmOptionsFileTypesColors
       AnchorSideTop.Control = cbCategoryColor
       AnchorSideTop.Side = asrCenter
       Left = 8
-      Height = 15
-      Top = 256
-      Width = 81
+      Height = 16
+      Top = 254
+      Width = 88
       Caption = 'Category co&lor:'
       FocusControl = cbCategoryColor
       ParentColor = False
@@ -61,9 +61,9 @@ inherited frmOptionsFileTypesColors: TfrmOptionsFileTypesColors
       AnchorSideTop.Control = edtCategoryAttr
       AnchorSideTop.Side = asrCenter
       Left = 8
-      Height = 15
-      Top = 225
-      Width = 104
+      Height = 16
+      Top = 223
+      Width = 114
       Caption = 'Category a&ttributes:'
       FocusControl = edtCategoryAttr
       ParentColor = False
@@ -74,8 +74,8 @@ inherited frmOptionsFileTypesColors: TfrmOptionsFileTypesColors
       AnchorSideRight.Side = asrBottom
       AnchorSideBottom.Control = edtCategoryMask
       Left = 170
-      Height = 23
-      Top = 159
+      Height = 24
+      Top = 155
       Width = 561
       Anchors = [akLeft, akRight, akBottom]
       BorderSpacing.Bottom = 8
@@ -86,8 +86,8 @@ inherited frmOptionsFileTypesColors: TfrmOptionsFileTypesColors
       AnchorSideRight.Control = btnSearchTemplate
       AnchorSideBottom.Control = edtCategoryAttr
       Left = 170
-      Height = 23
-      Top = 190
+      Height = 24
+      Top = 187
       Width = 532
       Anchors = [akLeft, akRight, akBottom]
       BorderSpacing.Top = 8
@@ -101,7 +101,7 @@ inherited frmOptionsFileTypesColors: TfrmOptionsFileTypesColors
       AnchorSideBottom.Control = btnApplyCategory
       Left = 170
       Height = 22
-      Top = 252
+      Top = 251
       Width = 527
       Style = [cbStandardColors, cbExtendedColors, cbSystemColors, cbPrettyNames]
       Anchors = [akLeft, akRight, akBottom]
@@ -117,7 +117,7 @@ inherited frmOptionsFileTypesColors: TfrmOptionsFileTypesColors
       AnchorSideBottom.Side = asrBottom
       Left = 389
       Height = 32
-      Top = 286
+      Top = 285
       Width = 110
       Anchors = [akRight, akBottom]
       BorderSpacing.Right = 6
@@ -132,7 +132,7 @@ inherited frmOptionsFileTypesColors: TfrmOptionsFileTypesColors
       AnchorSideBottom.Side = asrBottom
       Left = 505
       Height = 32
-      Top = 286
+      Top = 285
       Width = 110
       Anchors = [akRight, akBottom]
       BorderSpacing.Right = 6
@@ -149,7 +149,7 @@ inherited frmOptionsFileTypesColors: TfrmOptionsFileTypesColors
       AnchorSideBottom.Side = asrBottom
       Left = 703
       Height = 22
-      Top = 252
+      Top = 251
       Width = 28
       Anchors = [akTop, akRight, akBottom]
       BorderSpacing.InnerBorder = 4
@@ -163,7 +163,7 @@ inherited frmOptionsFileTypesColors: TfrmOptionsFileTypesColors
       AnchorSideRight.Side = asrBottom
       AnchorSideBottom.Control = edtCategoryName
       Left = 8
-      Height = 141
+      Height = 137
       Top = 6
       Width = 723
       Anchors = [akTop, akLeft, akRight, akBottom]
@@ -187,7 +187,7 @@ inherited frmOptionsFileTypesColors: TfrmOptionsFileTypesColors
       AnchorSideBottom.Side = asrBottom
       Left = 621
       Height = 32
-      Top = 286
+      Top = 285
       Width = 110
       Anchors = [akRight, akBottom]
       BorderSpacing.Bottom = 8
@@ -201,8 +201,8 @@ inherited frmOptionsFileTypesColors: TfrmOptionsFileTypesColors
       AnchorSideRight.Side = asrBottom
       AnchorSideBottom.Control = cbCategoryColor
       Left = 170
-      Height = 23
-      Top = 221
+      Height = 24
+      Top = 219
       Width = 561
       Anchors = [akLeft, akRight, akBottom]
       BorderSpacing.Bottom = 8
@@ -215,9 +215,9 @@ inherited frmOptionsFileTypesColors: TfrmOptionsFileTypesColors
       AnchorSideBottom.Control = edtCategoryMask
       AnchorSideBottom.Side = asrBottom
       Left = 708
-      Height = 23
+      Height = 24
       Hint = 'Template...'
-      Top = 190
+      Top = 187
       Width = 23
       Anchors = [akTop, akRight, akBottom]
       Glyph.Data = {
