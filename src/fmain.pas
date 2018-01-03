@@ -571,7 +571,7 @@ type
     procedure miTrayIconExitClick(Sender: TObject);
     procedure miTrayIconRestoreClick(Sender: TObject);
     procedure PanelButtonClick(Button: TSpeedButton; FileView: TFileView);
-    procedure ShellTreeViewDblClick(Sender: TObject);
+    procedure ShellTreeViewSelect;
     procedure ShellTreeViewKeyDown(Sender: TObject; var Key: Word;
       Shift: TShiftState);
     procedure ShellTreeViewMouseUp(Sender: TObject; Button: TMouseButton;
@@ -1273,20 +1273,31 @@ end;
 procedure TfrmMain.dskLeftRightToolButtonDragDrop(Sender, Source: TObject; X, Y: Integer);
 var
   ToolItem: TKASToolItem;
-  DriveItem: TKASDriveItem;
+  SourceFiles: TFiles;
+  TargetFileSource: IFileSource;
+  TargetPath: String;
 begin
   if Sender is TKASToolButton then
   begin
-    ToolItem := TKASToolButton(Sender).ToolItem;
-    if ToolItem is TKASDriveItem then
-    begin
-      DriveItem := TKASDriveItem(ToolItem);
-      case GetDropEffectByKeyAndMouse(GetKeyShiftState, mbLeft) of
-        DropCopyEffect:
-          Self.CopyFiles(DriveItem.Drive^.Path, gShowDialogOnDragDrop);
-        DropMoveEffect:
-          Self.MoveFiles(DriveItem.Drive^.Path, gShowDialogOnDragDrop);
+    SourceFiles := ActiveFrame.CloneSelectedOrActiveFiles;
+    try
+      ToolItem := TKASToolButton(Sender).ToolItem;
+      if ToolItem is TKASDriveItem then
+      begin
+        TargetPath := TKASDriveItem(ToolItem).Drive^.Path;
+        TargetFileSource := ParseFileSource(TargetPath, ActiveFrame.FileSource);
+        TargetPath := IncludeTrailingPathDelimiter(TargetPath);
+        if not Assigned(TargetFileSource) then
+          TargetFileSource := TFileSystemFileSource.GetFileSource;
+        case GetDropEffectByKeyAndMouse(GetKeyShiftState, mbLeft) of
+          DropCopyEffect:
+            Self.CopyFiles(ActiveFrame.FileSource, TargetFileSource, SourceFiles, TargetPath, gShowDialogOnDragDrop);
+          DropMoveEffect:
+            Self.MoveFiles(ActiveFrame.FileSource, TargetFileSource, SourceFiles, TargetPath, gShowDialogOnDragDrop);
+        end;
       end;
+    finally
+      SourceFiles.Free;
     end;
   end;
 end;
@@ -1492,7 +1503,7 @@ begin
     SetActiveFrame(FileView);
 end;
 
-procedure TfrmMain.ShellTreeViewDblClick(Sender: TObject);
+procedure TfrmMain.ShellTreeViewSelect;
 begin
   ShellTreeView.Tag := 1;
   try
@@ -1505,7 +1516,7 @@ end;
 procedure TfrmMain.ShellTreeViewKeyDown(Sender: TObject; var Key: Word;
   Shift: TShiftState);
 begin
-  if Key = VK_RETURN then ShellTreeViewDblClick(Sender);
+  if Key = VK_RETURN then ShellTreeViewSelect;
 end;
 
 procedure TfrmMain.ShellTreeViewMouseUp(Sender: TObject; Button: TMouseButton;
@@ -1535,6 +1546,8 @@ begin
     else;
   end;
 {$ENDIF}
+  if Button = mbLeft then
+    ShellTreeViewSelect;
 end;
 
 procedure TfrmMain.FormDestroy(Sender: TObject);
@@ -4116,7 +4129,6 @@ begin
 
       OnKeyDown := @ShellTreeViewKeyDown;
       OnMouseUp := @ShellTreeViewMouseUp;
-      OnDblClick := @ShellTreeViewDblClick;
       OnAdvancedCustomDrawItem := @ShellTreeViewAdvancedCustomDrawItem;
 
       ExpandSignType := tvestPlusMinus;
@@ -5807,6 +5819,7 @@ const
   PTLen = 40;
 var
   st: String;
+  Properties: TFileSourceProperties;
 begin
   if (fsoExecute in ActiveFrame.FileSource.GetOperationsTypes) then
   begin
@@ -5842,7 +5855,8 @@ begin
     edtCommand.Visible := False;
   end;
   // Change program current path
-  if (fspDirectAccess in ActiveFrame.FileSource.GetProperties) then
+  Properties := ActiveFrame.FileSource.GetProperties;
+  if (fspDirectAccess in Properties) and not (fspLinksToLocalFiles in Properties) then
   begin
     mbSetCurrentDir(ActiveFrame.CurrentPath);
   end;
