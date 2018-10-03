@@ -41,7 +41,7 @@
 
    contributors:
 
-   Copyright (C) 2006-2013 Alexander Koblov (alexx2000@mail.ru)
+   Copyright (C) 2006-2018 Alexander Koblov (alexx2000@mail.ru)
 
 
    TODO:
@@ -70,7 +70,7 @@ unit ViewerControl;
 interface
 
 uses
-  SysUtils, Classes, Controls, StdCtrls, fgl;
+  SysUtils, Classes, Controls, StdCtrls, LCLVersion, fgl;
 
 const
   MaxMemSize = $400000; // 4 Mb
@@ -201,6 +201,9 @@ const
     veUtf8, veUtf8bom, veUcs2le, veUcs2be,
     veUtf16le, veUtf16be, veUtf32le, veUtf32be];
 
+  ViewerEncodingDoubleByte: TViewerEncodings = [
+    veUcs2le, veUcs2be, veUtf16le, veUtf16be   ];
+
 type
 
 
@@ -234,10 +237,13 @@ type
     FScrollBarHorz:      TScrollBar;
     FOnPositionChanged:  TNotifyEvent;
     FUpdateScrollBarPos: Boolean; // used to block updating of scrollbar
-    FScrollBarPosition:  Integer;  // for updating vertical scrollbar based on Position
-    FHScrollBarPosition: Integer;  // for updating horizontal scrollbar based on HPosition
+    FScrollBarPosition:  Integer; // for updating vertical scrollbar based on Position
+    FHScrollBarPosition: Integer; // for updating horizontal scrollbar based on HPosition
     FColCount:           Integer;
+    FTabSpaces:          Integer; // tab width in spaces
+    FMaxTextWidth:       Integer; // maximum of chars on one line unwrapped text (max 16384)
     FOnGuessEncoding:    TGuessEncodingEvent;
+    FLastError:          String;
 
     FHex:TCustomCharsPresentation;
     FDec:TCustomCharsPresentation;
@@ -256,6 +262,8 @@ type
     procedure SetEncodingName(AEncodingName: string);
     procedure SetViewerMode(Value: TViewerControlMode);
     procedure SetColCount(const AValue: Integer);
+    procedure SetMaxTextWidth(const AValue: Integer);
+    procedure SetTabSpaces(const AValue: Integer);
 
     {en
        Returns how many lines (given current FTextHeight) will fit into the window.
@@ -344,6 +352,8 @@ type
 
     procedure AddLineOffset(const iOffset: PtrInt); inline;
 
+    procedure DrawLastError;
+
     function MapFile(const sFileName: String): Boolean;
     procedure UnMapFile;
     procedure SetFileName(const sFileName: String);
@@ -418,6 +428,9 @@ type
     procedure MouseUp(Button: TMouseButton; Shift: TShiftState; X, Y: Integer); override;
     function DoMouseWheelDown(Shift: TShiftState; MousePos: TPoint): Boolean; override;
     function DoMouseWheelUp(Shift: TShiftState; MousePos: TPoint): Boolean; override;
+{$if lcl_fullversion >= 1070000}
+    procedure DoAutoAdjustLayout(const AMode: TLayoutAdjustmentPolicy; const AXProportion, AYProportion: Double); override;
+{$endif}
 
   public
     constructor Create(AOwner: TComponent); override;
@@ -475,6 +488,8 @@ type
     property SelectionEnd: PtrInt Read FBlockEnd Write SetBlockEnd;
     property EncodingName: string Read GetEncodingName Write SetEncodingName;
     property ColCount: Integer Read FColCount Write SetColCount;
+    property MaxTextWidth: Integer read FMaxTextWidth write SetMaxTextWidth;
+    property TabSpaces: Integer read FTabSpaces write SetTabSpaces;
     property OnGuessEncoding: TGuessEncodingEvent Read FOnGuessEncoding Write FOnGuessEncoding;
 
   published
@@ -504,10 +519,10 @@ procedure Register;
 implementation
 
 uses
-  LCLType, LCLVersion, Graphics, Forms, LCLProc, Clipbrd, LConvEncoding,
+  LCLType, Graphics, Forms, LCLProc, Clipbrd, LConvEncoding,
   DCUnicodeUtils, LCLIntf, LazUTF8, DCOSUtils , DCConvertEncoding
   {$IF DEFINED(UNIX)}
-  , BaseUnix, Unix
+  , BaseUnix, Unix, DCUnix
   {$ELSEIF DEFINED(WINDOWS)}
   , Windows, DCWindows
   {$ENDIF};
@@ -516,8 +531,6 @@ uses
 const
   //cTextWidth      = 80;  // wrap on 80 chars
   cBinWidth       = 80;
-  cMaxTextWidth   = 1024; // maximum of chars on one line unwrapped text
-  cTabSpaces      = 8;   // tab stop - allow to set in settings
 
   // These strings must be Ascii only.
   sNonCharacter: string = ' !"#$%&''()*+,-./:;<=>?@[\]^`{|}~'#13#10#9;
@@ -575,6 +588,8 @@ begin
   FBOMLength := 0;
   FTextHeight:= 14; // dummy value
   FColCount  := 1;
+  FTabSpaces := 8;
+  FMaxTextWidth := 1024;
 
   FLineList := TPtrIntList.Create;
 
@@ -625,10 +640,26 @@ begin
   inherited Destroy;
 end;
 
+procedure TViewerControl.DrawLastError;
+var
+  AStyle: TTextStyle;
+begin
+  AStyle:= Canvas.TextStyle;
+  AStyle.Alignment:= taCenter;
+  AStyle.Layout:= tlCenter;
+  Canvas.Pen.Color := Canvas.Font.Color;
+  Canvas.Line(0, 0, ClientWidth - 1, ClientHeight - 1);
+  Canvas.Line(0, ClientHeight - 1, ClientWidth - 1, 0);
+  Canvas.TextRect(ClientRect, 0, 0, FLastError, AStyle);
+end;
+
 procedure TViewerControl.Paint;
 begin
   if not IsFileOpen then
+  begin
+    DrawLastError;
     Exit;
+  end;
 
   Canvas.Font := Self.Font;
   Canvas.Brush.Color := Self.Color;
@@ -652,7 +683,6 @@ begin
     vcmWrap: WriteText;
     vcmBook: WriteText;
     vcmDec,vcmHex : WriteCustom;
-
   end;
 end;
 
@@ -662,19 +692,20 @@ begin
   begin
     FLineList.Clear; // do not use cache from previous mode
 
+    FViewerControlMode := Value;
+    case FViewerControlMode of
+      vcmHex: FCustom := FHex;
+      vcmDec: FCustom := FDec;
+    else
+      FCustom := nil;
+    end;
+
+    if not IsFileOpen then
+      Exit;
+
     // Take limits into account for selection.
     FBlockBeg := FBlockBeg + (GetDataAdr - FMappedFile);
     FBlockEnd := FBlockEnd + (GetDataAdr - FMappedFile);
-
-    FViewerControlMode := Value;
-    case FViewerControlMode of
-      vcmHex: FCustom:=FHex;
-      vcmDec: FCustom:=FDec;
-    else
-      FCustom:=nil;
-    end;
-
-
 
     FHPosition := 0;
     FBOMLength := GetBomLength;
@@ -703,6 +734,26 @@ begin
     else FColCount := 1;
 end;
 
+procedure TViewerControl.SetMaxTextWidth(const AValue: Integer);
+begin
+  if AValue < 80 then
+    FMaxTextWidth := 80
+  else if AValue > 16384 then
+    FMaxTextWidth := 16384
+  else
+    FMaxTextWidth:= AValue;
+end;
+
+procedure TViewerControl.SetTabSpaces(const AValue: Integer);
+begin
+  if AValue < 1 then
+    FTabSpaces := 1
+  else if AValue > 32 then
+    FTabSpaces := 32
+  else
+    FTabSpaces := AValue;
+end;
+
 function TViewerControl.ScrollPosition(var aPosition: PtrInt; iLines: Integer): Boolean;
 var
   i:      Integer;
@@ -725,6 +776,8 @@ function TViewerControl.Scroll(iLines: Integer): Boolean;
 var
   aPosition: PtrInt;
 begin
+  if not IsFileOpen then
+    Exit;
   aPosition := FPosition;
   Result := ScrollPosition(aPosition, iLines);
   if aPosition <> FPosition then
@@ -733,15 +786,15 @@ end;
 
 function TViewerControl.HScroll(iSymbols: Integer): Boolean;
 var
-  newPos: integer;
+  newPos: Integer;
 begin
-  newPos := FHPosition;
-  if (FHLowEnd - FTextWidth) > 0 then
-    begin
-      newPos := newPos+ iSymbols;
-      if newPos < 0 then newPos := 0;
-      if newPos > FHLowEnd-FTextWidth then newPos := FHLowEnd-FTextWidth;
-    end;
+  if not IsFileOpen then
+    Exit;
+  newPos := FHPosition + iSymbols;
+  if newPos < 0 then
+    newPos := 0
+  else if (newPos > FHLowEnd - FTextWidth) and (FHLowEnd - FTextWidth > 0) then
+    newPos := FHLowEnd - FTextWidth;
   if newPos <> FHPosition then
     SetHPosition(newPos);
 end;
@@ -769,7 +822,7 @@ begin
   begin
     case GetNextCharAsAscii(iStartPos, CharLenInBytes) of
       9:             // tab
-        Inc(Result, cTabSpaces - Result mod cTabSpaces);
+        Inc(Result, FTabSpaces - Result mod FTabSpaces);
       10:            // stroka
         begin
           DataLength := iStartPos - OldPos;
@@ -801,7 +854,7 @@ begin
     iStartPos := iStartPos + CharLenInBytes;
     DataLength := iStartPos - OldPos;
     case FViewerControlMode of
-    vcmText:   MaxLineLength := Result < cMaxTextWidth;
+    vcmText:   MaxLineLength := Result < FMaxTextWidth;
     vcmWrap:   MaxLineLength := Result < FTextWidth;
     vcmBook:   MaxLineLength := Canvas.TextWidth(GetText(OldPos, DataLength, 0)) < FTextWidth;
     else
@@ -830,7 +883,7 @@ begin
     case c of
       #9:
         Result := Result + StringOfChar(' ',
-                    cTabSpaces - (UTF8Length(Result) + Xoffset) mod cTabSpaces);
+                    FTabSpaces - (UTF8Length(Result) + Xoffset) mod FTabSpaces);
       else
         begin
           if c < ' ' then
@@ -968,7 +1021,6 @@ begin
   while length(Result)<AMaxDigitsCount do
         Result:=' '+Result;
 end;
-
 
 function TViewerControl.GetStartOfLine(aPosition: PtrInt): PtrInt;
 
@@ -1391,6 +1443,7 @@ begin
   if Assigned(FMappedFile) then
     UnMapFile; // if needed
 
+  FLastError  := EmptyStr;
   wFileName   := UTF16LongName(sFileName);
   FFileHandle := CreateFileW(PWChar(wFileName), GENERIC_READ,
       FILE_SHARE_READ or FILE_SHARE_WRITE or FILE_SHARE_DELETE, nil,
@@ -1398,11 +1451,12 @@ begin
 
   if FFileHandle = INVALID_HANDLE_VALUE then
   begin
+    FLastError := mbSysErrorMessage;
     FFileHandle := 0;
     Exit;
   end;
 
-  FFileSize := GetFileSize(FFileHandle, nil);
+  Int64Rec(FFileSize).Lo := GetFileSize(FFileHandle, @Int64Rec(FFileSize).Hi);
 
   if (FFileSize < MaxMemSize) then
   begin
@@ -1412,41 +1466,68 @@ begin
 
   FMappingHandle := CreateFileMapping(FFileHandle, nil, PAGE_READONLY, 0, 0, nil);
 
-  if FMappingHandle <> 0 then
-    FMappedFile := MapViewOfFile(FMappingHandle, FILE_MAP_READ, 0, 0, 0)
-  else
+  if FMappingHandle = 0 then
   begin
+    FLastError := mbSysErrorMessage;
     FMappedFile := nil;
-    FileClose(FFileHandle);
-    FFileHandle := 0;
-    Exit;
+    UnMapFile;
+  end
+  else begin
+    FMappedFile := MapViewOfFile(FMappingHandle, FILE_MAP_READ, 0, 0, 0);
+    if (FMappedFile = nil) then
+    begin
+      FLastError := mbSysErrorMessage;
+      UnMapFile;
+    end;
   end;
 
-  Result := True;
+  Result := Assigned(FMappedFile);
 end;
 {$ELSE}
 var
   StatBuf: Stat;
+{$IFDEF LINUX}
+  Sbfs: TStatFS;
+{$ENDIF}
 begin
   Result := False;
   if Assigned(FMappedFile) then
     UnMapFile; // if needed
 
+  FLastError  := EmptyStr;
   FFileHandle := mbFileOpen(sFileName, fmOpenRead);
   if FFileHandle = feInvalidHandle then
   begin
+    FLastError := mbSysErrorMessage;
     FFileHandle := 0;
     Exit;
   end;
 
   if fpFStat(FFileHandle, StatBuf) <> 0 then
   begin
+    FLastError := mbSysErrorMessage;
     FileClose(FFileHandle);
     FFileHandle := 0;
     Exit;
   end;
 
   FFileSize := StatBuf.st_size;
+
+{$IFDEF LINUX}
+  if (fpFStatFS(FFileHandle, @Sbfs) = 0) then
+  begin
+    // Special case for PROC_FS and SYS_FS
+    if (sbfs.fstype = PROC_SUPER_MAGIC) or (sbfs.fstype = SYSFS_MAGIC) then
+    begin
+      FMappedFile := GetMem(MaxMemSize - 1);
+      FFileSize := FileRead(FFileHandle, FMappedFile^, MaxMemSize - 1);
+      Result := (FFileSize > 0);
+      FileClose(FFileHandle);
+      FFileHandle := 0;
+      Exit;
+    end;
+  end;
+{$ENDIF}
 
   if (FFileSize < MaxMemSize) then
   begin
@@ -1457,6 +1538,7 @@ begin
   FMappedFile := fpmmap(nil, FFileSize, PROT_READ, MAP_PRIVATE{SHARED}, FFileHandle, 0);
   if FMappedFile = MAP_FAILED then
   begin
+    FLastError := mbSysErrorMessage;
     FMappedFile:= nil;
     FileClose(FFileHandle);
     FFileHandle := 0;
@@ -1492,12 +1574,6 @@ begin
     FMappingHandle := 0;
   end;
 
-  if FFileHandle <> 0 then
-  begin
-    FileClose(FFileHandle);
-    FFileHandle := 0;
-  end;
-
 {$ELSE}
 
   if Assigned(FMappedFile) then
@@ -1507,13 +1583,13 @@ begin
     FMappedFile := nil;
   end;
 
+{$ENDIF}
+
   if FFileHandle <> 0 then
   begin
-    fpClose(FFileHandle);
+    FileClose(FFileHandle);
     FFileHandle := 0;
   end;
-
-{$ENDIF}
 
   FFileName  := '';
   FFileSize  := 0;
@@ -1623,13 +1699,10 @@ begin
 
   FHPosition := Value;
   // Set new scroll position.
-  if (FHLowEnd - FTextWidth) > 0 then
-  begin
-    if FHPosition > 0 then
-      FHScrollBarPosition := FHPosition * 100 div (FHLowEnd - FTextWidth)
-    else
-      FHScrollBarPosition := 0;
-  end;
+  if (FHPosition > 0) and (FHLowEnd - FTextWidth > 0) then
+    FHScrollBarPosition := FHPosition * 100 div (FHLowEnd - FTextWidth)
+  else
+    FHScrollBarPosition := 0;
   // Update scrollbar position.
   if FUpdateScrollBarPos then
   begin
@@ -2086,6 +2159,16 @@ begin
           Key := 0;
           Scroll(-1);
         end;
+      VK_RIGHT:
+        begin
+          Key := 0;
+          HScroll(1);
+        end;
+      VK_LEFT:
+        begin
+          Key := 0;
+          HScroll(-1);
+        end;
       VK_HOME:
         begin
           Key := 0;
@@ -2406,6 +2489,15 @@ begin
     Result := Scroll(-Mouse.WheelScrollLines);
 end;
 
+{$if lcl_fullversion >= 1070000}
+procedure TViewerControl.DoAutoAdjustLayout(const AMode: TLayoutAdjustmentPolicy; const AXProportion, AYProportion: Double);
+begin
+  FScrollBarVert.Width  := LCLIntf.GetSystemMetrics(SM_CYVSCROLL);
+  FScrollBarHorz.Height := LCLIntf.GetSystemMetrics(SM_CYHSCROLL);
+  inherited DoAutoAdjustLayout(AMode, AXProportion, AYProportion);
+end;
+{$endif}
+
 function TViewerControl.XYPos2Adr(x, y: Integer; out CharSide: TCharSide): PtrInt;
 var
   yIndex:  Integer;
@@ -2558,8 +2650,8 @@ var
       begin
         if s = #9 then
         begin
-          s := StringOfChar(' ', cTabSpaces - len mod cTabSpaces);
-          len := len + (cTabSpaces - len mod cTabSpaces);
+          s := StringOfChar(' ', FTabSpaces - len mod FTabSpaces);
+          len := len + (FTabSpaces - len mod FTabSpaces);
         end
         else
           Inc(len); // Assume there is one character after conversion

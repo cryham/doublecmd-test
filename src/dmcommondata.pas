@@ -37,7 +37,10 @@ uses
 
 procedure TdmComData.DataModuleCreate(Sender: TObject);
 begin
-  LoadEditorImageList;
+  if Assigned(PixMapManager) then
+  begin
+    LoadEditorImageList;
+  end;
 end;
 
 procedure TdmComData.LoadEditorImageList;
@@ -63,6 +66,7 @@ begin
   ilEditorImages.LoadThemeIcon(14, 'edit-delete');
   ilEditorImages.LoadThemeIcon(15, 'edit-select-all');
   ilEditorImages.LoadThemeIcon(16, 'go-jump');
+  ilEditorImages.LoadThemeIcon(17, 'view-refresh');
 end;
 
 end.

@@ -25,7 +25,7 @@
     <VersionInfo>
       <UseVersionInfo Value="True"/>
       <MinorVersionNr Value="9"/>
-      <StringTable FileDescription="Double Commander is a cross platform open source file manager with two panels side by side" InternalName="DOUBLECMD" LegalCopyright="Copyright (C) 2006-2017 Alexander Koblov" ProductName="Double Commander"/>
+      <StringTable FileDescription="Double Commander is a cross platform open source file manager with two panels side by side" InternalName="DOUBLECMD" LegalCopyright="Copyright (C) 2006-2018 Alexander Koblov" ProductName="Double Commander"/>
     </VersionInfo>
     <BuildModes Count="5">
       <Item1 Name="Debug" Default="True"/>
@@ -180,6 +180,11 @@ end;
 if ((LCLWidgetType = 'qt') or (LCLWidgetType = 'qt5')) and (TargetOS &lt;> 'darwin') then
 begin
   UnitPath += 'platform/$(SrcOS)/qt5;';
+end;
+
+if (LCLWidgetType = 'gtk2') and (SrcOS = 'unix') and (TargetOS &lt;> 'darwin') then
+begin
+  UnitPath += 'platform/$(SrcOS)/$(LCLWidgetType);';
 end;"/>
           <Parsing>
             <SyntaxOptions>
@@ -243,6 +248,7 @@ end;"/>
       </Item2>
       <Item3>
         <PackageName Value="dcpcrypt"/>
+        <MinVersion Major="3" Valid="True"/>
       </Item3>
       <Item4>
         <PackageName Value="chsdet"/>
@@ -278,7 +284,7 @@ end;"/>
         <MinVersion Minor="3" Valid="True"/>
       </Item12>
     </RequiredPackages>
-    <Units Count="237">
+    <Units Count="238">
       <Unit0>
         <Filename Value="doublecmd.lpr"/>
         <IsPartOfProject Value="True"/>
@@ -1110,6 +1116,7 @@ end;"/>
       <Unit125>
         <Filename Value="filesources\ufilesourceoperationui.pas"/>
         <IsPartOfProject Value="True"/>
+        <UnitName Value="uFileSourceOperationUI"/>
       </Unit125>
       <Unit126>
         <Filename Value="filesources\ufilesourceproperty.pas"/>
@@ -1702,6 +1709,14 @@ end;"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="uExifReader"/>
       </Unit236>
+      <Unit237>
+        <Filename Value="fviewoperations.pas"/>
+        <IsPartOfProject Value="True"/>
+        <ComponentName Value="frmViewOperations"/>
+        <HasResources Value="True"/>
+        <ResourceBaseClass Value="Form"/>
+        <UnitName Value="fViewOperations"/>
+      </Unit237>
     </Units>
   </ProjectOptions>
   <CompilerOptions>

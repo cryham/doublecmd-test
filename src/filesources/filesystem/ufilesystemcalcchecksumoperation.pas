@@ -28,6 +28,7 @@ type
     FChecksumsList: TObjectList;
 
     // Options.
+    FFileExistsOption: TFileSourceOperationOptionFileExists;
     FSymLinkOption: TFileSourceOperationOptionSymLink;
     FSkipErrors: Boolean;
 
@@ -40,6 +41,7 @@ type
 
     function CalcChecksumProcessFile(aFile: TFile): Boolean;
     function VerifyChecksumProcessFile(aFile: TFile; ExpectedChecksum: String): Boolean;
+    function FileExists(var AbsoluteTargetFileName: String): TFileSourceOperationOptionFileExists;
 
   public
     constructor Create(aTargetFileSource: IFileSource;
@@ -57,9 +59,9 @@ type
 implementation
 
 uses
-  LazUTF8, DCConvertEncoding,
+  Math, Forms, LazUTF8, DCConvertEncoding,
   uLng, uFileSystemUtil, uFileSystemFileSource, DCOSUtils, DCStrUtils,
-  uFileProcs, uDCUtils;
+  uFileProcs, uDCUtils, uShowMsg;
 
 type
   TChecksumEntry = class
@@ -81,6 +83,7 @@ constructor TFileSystemCalcChecksumOperation.Create(
 begin
   FBuffer := nil;
   FSymLinkOption := fsooslNone;
+  FFileExistsOption := fsoofeNone;
   FSkipErrors := False;
   FFullFilesTree := nil;
   FCheckSumFile := TStringListEx.Create;
@@ -100,12 +103,9 @@ begin
     FBuffer := nil;
   end;
 
-  if Assigned(FFullFilesTree) then
-    FreeAndNil(FFullFilesTree);
-  if Assigned(FCheckSumFile) then
-    FreeAndNil(FCheckSumFile);
-  if Assigned(FChecksumsList) then
-    FreeAndNil(FChecksumsList);
+  FreeAndNil(FFullFilesTree);
+  FreeAndNil(FCheckSumFile);
+  FreeAndNil(FChecksumsList);
 end;
 
 procedure TFileSystemCalcChecksumOperation.Initialize;
@@ -141,7 +141,17 @@ var
   CurrentFileIndex: Integer;
   OldDoneBytes: Int64; // for if there was an error
   Entry: TChecksumEntry;
+  TargetFileName: String;
 begin
+  if OneFile and (Mode = checksum_calc) then
+  begin
+    TargetFileName:= TargetMask;
+    case FileExists(TargetFileName) of
+      fsoofeSkip: Exit;
+      fsoofeOverwrite: ;
+    end;
+  end;
+
   for CurrentFileIndex := 0 to FFullFilesTree.Count - 1 do
   begin
     aFile := FFullFilesTree[CurrentFileIndex];
@@ -189,16 +199,18 @@ begin
     checksum_calc:
       // make result
       if OneFile then
-        try
-          FCheckSumFile.SaveToFile(TargetMask);
-        except
-          on E: EFCreateError do
-            AskQuestion(rsMsgErrECreate + ' ' + TargetMask + ':',
-                                 E.Message, [fsourOk], fsourOk, fsourOk);
-          on E: EWriteError do
-            AskQuestion(rsMsgErrEWrite + ' ' + TargetMask + ':',
+      try
+        CurrentFileIndex:= IfThen(Algorithm = HASH_SFV, 2, 0);
+        if (FCheckSumFile.Count > CurrentFileIndex) then
+          FCheckSumFile.SaveToFile(TargetFileName);
+      except
+        on E: EFCreateError do
+          AskQuestion(rsMsgErrECreate + ' ' + TargetFileName + ':',
                                E.Message, [fsourOk], fsourOk, fsourOk);
-        end;
+        on E: EWriteError do
+          AskQuestion(rsMsgErrEWrite + ' ' + TargetFileName + ':',
+                             E.Message, [fsourOk], fsourOk, fsourOk);
+      end;
 
     checksum_verify:
       begin
@@ -373,9 +385,10 @@ function TFileSystemCalcChecksumOperation.CalcChecksumProcessFile(aFile: TFile):
 var
   FileName: String;
   sCheckSum: String;
+  TargetFileName: String;
 begin
   Result := False;
-  FileName := aFile.Path + aFile.Name;
+  FileName := aFile.FullPath;
 
   if not OneFile then
   begin
@@ -385,9 +398,14 @@ begin
       FCheckSumFile.Add(SFV_HEADER);
       FCheckSumFile.Add(DC_HEADER);
     end;
+    TargetFileName:= FileName + '.' + HashFileExt[Algorithm];
+    case FileExists(TargetFileName) of
+      fsoofeOverwrite: ;
+      fsoofeSkip: Exit(True);
+    end;
   end;
 
-  CheckSumCalc(aFile, sCheckSum);
+  if not CheckSumCalc(aFile, sCheckSum) then Exit;
 
   if Algorithm = HASH_SFV then
   begin
@@ -401,13 +419,13 @@ begin
 
   if not OneFile then
     try
-      FCheckSumFile.SaveToFile(FileName + '.' + HashFileExt[Algorithm]);
+      FCheckSumFile.SaveToFile(TargetFileName);
     except
       on E: EFCreateError do
-        AskQuestion(rsMsgErrECreate + ' ' + FileName + '.' + HashFileExt[Algorithm] + ':',
+        AskQuestion(rsMsgErrECreate + ' ' + TargetFileName + LineEnding,
                                  E.Message, [fsourOk], fsourOk, fsourOk);
       on E: EWriteError do
-        AskQuestion(rsMsgErrEWrite + ' ' + FileName + '.' + HashFileExt[Algorithm] + ':',
+        AskQuestion(rsMsgErrEWrite + ' ' + TargetFileName + LineEnding,
                                E.Message, [fsourOk], fsourOk, fsourOk);
     end;
 end;
@@ -432,90 +450,153 @@ begin
     end;
 end;
 
+function TFileSystemCalcChecksumOperation.FileExists(var AbsoluteTargetFileName: String): TFileSourceOperationOptionFileExists;
+const
+  Responses: array[0..5] of TFileSourceOperationUIResponse
+    = (fsourOverwrite, fsourSkip, fsourRenameSource, fsourOverwriteAll,
+       fsourSkipAll, fsourCancel);
+var
+  Answer: Boolean;
+  Message: String;
+begin
+  if not mbFileExists(AbsoluteTargetFileName) then
+    Result:= fsoofeOverwrite
+  else case FFileExistsOption of
+    fsoofeNone:
+      repeat
+        Answer := True;
+        Message:= rsMsgFileExistsOverwrite + LineEnding +
+                  WrapTextSimple(AbsoluteTargetFileName, 100) + LineEnding;
+        case AskQuestion(Message, '',
+                         Responses, fsourOverwrite, fsourSkip) of
+          fsourOverwrite:
+            Result := fsoofeOverwrite;
+          fsourSkip:
+            Result := fsoofeSkip;
+          fsourOverwriteAll:
+            begin
+              FFileExistsOption := fsoofeOverwrite;
+              Result := fsoofeOverwrite;
+            end;
+          fsourSkipAll:
+            begin
+              FFileExistsOption := fsoofeSkip;
+              Result := fsoofeSkip;
+            end;
+          fsourRenameSource:
+            begin
+              Message:= ExtractFileName(AbsoluteTargetFileName);
+              Answer:= ShowInputQuery(Thread, Application.Title, rsEditNewFileName, Message);
+              if Answer then
+              begin
+                Result:= fsoofeAutoRenameSource;
+                AbsoluteTargetFileName:= ExtractFilePath(AbsoluteTargetFileName) + Message;
+                Answer:= not mbFileExists(AbsoluteTargetFileName);
+              end;
+            end;
+          fsourNone,
+          fsourCancel:
+            RaiseAbortOperation;
+        end;
+        until Answer;
+    else
+      Result := FFileExistsOption;
+  end;
+end;
+
 function TFileSystemCalcChecksumOperation.CheckSumCalc(aFile: TFile; out
   aValue: String): Boolean;
 var
   hFile: THandle;
-  Context: THashContext;
-  BytesRead, BytesToRead: Int64;
   bRetryRead: Boolean;
+  Context: THashContext;
   TotalBytesToRead: Int64 = 0;
+  BytesRead, BytesToRead: Int64;
 begin
-  hFile := feInvalidHandle;
   BytesToRead := FBufferSize;
 
-  HashInit(Context, Algorithm);
-  try
+  repeat
     hFile:= mbFileOpen(aFile.FullPath, fmOpenRead or fmShareDenyNone);
-
     Result:= hFile <> feInvalidHandle;
-    if Result then
-      begin
-        TotalBytesToRead := mbFileSize(aFile.FullPath);
+    if not Result then
+    begin
+      case AskQuestion(rsMsgErrEOpen + ' ' + aFile.FullPath + LineEnding + mbSysErrorMessage,
+                       '',
+                       [fsourRetry, fsourSkip, fsourAbort],
+                       fsourRetry, fsourSkip) of
+        fsourRetry:
+          ;
+        fsourAbort:
+          RaiseAbortOperation;
+        fsourSkip:
+          Exit(False);
+      end; // case
+    end;
+  until Result;
 
-        while TotalBytesToRead > 0 do
-        begin
-          // Without the following line the reading is very slow
-          // if it tries to read past end of file.
-          if TotalBytesToRead < BytesToRead then
-            BytesToRead := TotalBytesToRead;
+  HashInit(Context, Algorithm);
 
-          repeat
-            try
-              bRetryRead := False;
-              BytesRead := FileRead(hFile, FBuffer^, BytesToRead);
+  try
+    TotalBytesToRead := mbFileSize(aFile.FullPath);
 
-              if (BytesRead <= 0) then
-                Raise EReadError.Create(mbSysErrorMessage(GetLastOSError));
+    while TotalBytesToRead > 0 do
+    begin
+      // Without the following line the reading is very slow
+      // if it tries to read past end of file.
+      if TotalBytesToRead < BytesToRead then
+        BytesToRead := TotalBytesToRead;
 
-              TotalBytesToRead := TotalBytesToRead - BytesRead;
+      repeat
+        try
+          bRetryRead := False;
+          BytesRead := FileRead(hFile, FBuffer^, BytesToRead);
 
-              HashUpdate(Context, FBuffer^, BytesRead);
+          if (BytesRead <= 0) then
+            Raise EReadError.Create(mbSysErrorMessage(GetLastOSError));
 
-            except
-              on E: EReadError do
-                begin
-                  if gSkipFileOpError then
-                  begin
-                    LogMessage(rsMsgErrERead + ' ' + aFile.FullPath + ': ' + E.Message,
-                               [], lmtError);
-                    Exit(False);
-                  end
-                  else
-                  case AskQuestion(rsMsgErrERead + ' ' + aFile.FullPath + ': ',
-                                   E.Message,
-                                   [fsourRetry, fsourSkip, fsourAbort],
-                                   fsourRetry, fsourSkip) of
-                    fsourRetry:
-                      bRetryRead := True;
-                    fsourAbort:
-                      RaiseAbortOperation;
-                    fsourSkip:
-                      Exit(False);
-                  end; // case
-                end;
+          TotalBytesToRead := TotalBytesToRead - BytesRead;
+
+          HashUpdate(Context, FBuffer^, BytesRead);
+
+        except
+          on E: EReadError do
+            begin
+              if gSkipFileOpError then
+              begin
+                LogMessage(rsMsgErrERead + ' ' + aFile.FullPath + ': ' + E.Message,
+                           [], lmtError);
+                Exit(False);
+              end;
+
+              case AskQuestion(rsMsgErrERead + ' ' + aFile.FullPath + LineEnding + E.Message,
+                               '',
+                               [fsourRetry, fsourSkip, fsourAbort],
+                               fsourRetry, fsourSkip) of
+                fsourRetry:
+                  bRetryRead := True;
+                fsourAbort:
+                  RaiseAbortOperation;
+                fsourSkip:
+                  Exit(False);
+              end; // case
             end;
-          until not bRetryRead;
+        end;
+      until not bRetryRead;
 
-          with FStatistics do
-          begin
-            CurrentFileDoneBytes := CurrentFileDoneBytes + BytesRead;
-            DoneBytes := DoneBytes + BytesRead;
+      with FStatistics do
+      begin
+        CurrentFileDoneBytes := CurrentFileDoneBytes + BytesRead;
+        DoneBytes := DoneBytes + BytesRead;
 
-            UpdateStatistics(FStatistics);
-          end;
-
-          CheckOperationState; // check pause and stop
-        end;//while
+        UpdateStatistics(FStatistics);
       end;
 
+      CheckOperationState; // check pause and stop
+    end;//while
+
   finally
+    FileClose(hFile);
     HashFinal(Context, aValue);
-    if hFile <> feInvalidHandle then
-    begin
-      FileClose(hFile);
-      hFile := feInvalidHandle;
-    end;
   end;
 end;
 

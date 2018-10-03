@@ -59,6 +59,7 @@ type
     actEditLineEndLf: TAction;
     actEditGotoLine: TAction;
     actEditFindPrevious: TAction;
+    actFileReload: TAction;
     MainMenu1: TMainMenu;
     ActListEdit: TActionList;
     actAbout: TAction;
@@ -69,6 +70,7 @@ type
     actFileNew: TAction;
     actFileExit: TAction;
     MenuItem1: TMenuItem;
+    miFileReload: TMenuItem;
     miFindPrevious: TMenuItem;
     miGotoLine: TMenuItem;
     miEditLineEndCr: TMenuItem;
@@ -194,10 +196,12 @@ type
     procedure UpdateHighlighter(Highlighter: TSynCustomHighlighter);
     procedure DoSearchReplaceText(AReplace: boolean; ABackwards: boolean);
     procedure ShowSearchReplaceDialog(AReplace: boolean);
+    procedure LoadGlobalOptions;
 
     property FileName: String read FFileName write SetFileName;
 
    published
+     procedure cm_FileReload(const Params: array of string);
      procedure cm_EditFind(const {%H-}Params:array of string);
      procedure cm_EditFindNext(const {%H-}Params:array of string);
      procedure cm_EditFindPrevious(const {%H-}Params:array of string);
@@ -224,6 +228,9 @@ type
 
   procedure ShowEditor(const sFileName: String; WaitData: TWaitData = nil);
 
+  var
+    LastEditorUsedForConfiguration: TfrmEditor = nil;
+
 implementation
 
 {$R *.lfm}
@@ -249,6 +256,7 @@ begin
   end;
 
   Editor.ShowOnTop;
+  LastEditorUsedForConfiguration := Editor;
 end;
 
 procedure TfrmEditor.FormCreate(Sender: TObject);
@@ -262,8 +270,7 @@ begin
 
   Menu.Images:= dmComData.ilEditorImages;
 
-  Editor.Options:= gEditorSynEditOptions;
-  FontOptionsToFont(gFonts[dcfEditor], Editor.Font);
+  LoadGlobalOptions;
 
 // update menu highlighting
   miHighlight.Clear;
@@ -315,6 +322,13 @@ begin
   HMEditor := HotMan.Register(Self, HotkeysCategory);
   HMEditor.RegisterActionList(ActListEdit);
   FCommands := TFormCommands.Create(Self, ActListEdit);
+end;
+
+procedure TfrmEditor.LoadGlobalOptions;
+begin
+  Editor.Options:= gEditorSynEditOptions;
+  FontOptionsToFont(gFonts[dcfEditor], Editor.Font);
+  Editor.TabWidth := gEditorSynEditTabWidth;
 end;
 
 procedure TfrmEditor.actExecute(Sender: TObject);
@@ -461,11 +475,11 @@ begin
       if (Editor.Lines.Count = 0) then
       begin
         if (Encoding = EncodingUTF8BOM) then
-          Writer.Write(UTF8BOM, SizeOf(UTF8BOM))
+          Writer.WriteBuffer(UTF8BOM, SizeOf(UTF8BOM))
         else if (Encoding = EncodingUCS2LE) then
-          Writer.Write(UTF16LEBOM, SizeOf(UTF16LEBOM))
+          Writer.WriteBuffer(UTF16LEBOM, SizeOf(UTF16LEBOM))
         else if (Encoding = EncodingUCS2BE) then
-          Writer.Write(UTF16BEBOM, SizeOf(UTF16BEBOM));
+          Writer.WriteBuffer(UTF16BEBOM, SizeOf(UTF16BEBOM));
       end
       else begin
         TextOut := EmptyStr;
@@ -475,7 +489,7 @@ begin
           TextOut := UTF16BEBOM
         end;
         TextOut += ConvertEncoding(Editor.Lines[0], EncodingUTF8, sEncodingOut);
-        Writer.Write(Pointer(TextOut)^, Length(TextOut));
+        Writer.WriteBuffer(Pointer(TextOut)^, Length(TextOut));
 
         // If file has only one line then write it without line break
         if Editor.Lines.Count > 1 then
@@ -486,14 +500,14 @@ begin
           if (Encoding <> EncodingUTF8) and (Encoding <> EncodingUTF8BOM) then begin
             TextOut:= ConvertEncoding(TextOut, EncodingUTF8, sEncodingOut);
           end;
-          Writer.Write(Pointer(TextOut)^, Length(TextOut));
+          Writer.WriteBuffer(Pointer(TextOut)^, Length(TextOut));
           // Write last line without line break
           TextOut:= Editor.Lines[Editor.Lines.Count - 1];
           // Special case for UTF-8 and UTF-8 with BOM
           if (Encoding <> EncodingUTF8) and (Encoding <> EncodingUTF8BOM) then begin
             TextOut:= ConvertEncoding(TextOut, EncodingUTF8, sEncodingOut);
           end;
-          Writer.Write(Pointer(TextOut)^, Length(TextOut));
+          Writer.WriteBuffer(Pointer(TextOut)^, Length(TextOut));
         end;
       end;
     finally
@@ -504,16 +518,8 @@ begin
     Editor.MarkTextAsSaved;
     Result := True;
   except
-    on E: EFCreateError do
-    begin
-      DCDebug(E.Message);
-      msgWarning(rsMsgErrSaveFile + ' ' + aFileName);
-    end;
-    on E: EFOpenError do
-    begin
-      DCDebug(E.Message);
-      msgWarning(rsMsgErrSaveFile + ' ' + aFileName);
-    end;
+    on E: Exception do
+      msgError(rsMsgErrSaveFile + ' ' + aFileName + LineEnding + E.Message);
   end;
 end;
 
@@ -528,6 +534,7 @@ end;
 
 destructor TfrmEditor.Destroy;
 begin
+  LastEditorUsedForConfiguration := nil;
   HotMan.UnRegister(Self);
   inherited Destroy;
   if Assigned(FWaitData) then FWaitData.Done;
@@ -537,11 +544,10 @@ end;
 procedure TfrmEditor.EditorReplaceText(Sender: TObject; const ASearch,
   AReplace: string; Line, Column: integer; var ReplaceAction: TSynReplaceAction );
 begin
-
   if ASearch = AReplace then
     ReplaceAction := raSkip
   else begin
-    case MsgBox('Replace this text?',[msmbYes, msmbNo, msmbCancel, msmbAll], msmbYes, msmbNo) of
+    case MsgBox(rsMsgReplaceThisText, [msmbYes, msmbNo, msmbCancel, msmbAll], msmbYes, msmbNo) of
       mmrYes: ReplaceAction := raReplace;
       mmrAll: ReplaceAction := raReplaceAll;
       mmrNo: ReplaceAction := raSkip;
@@ -789,6 +795,15 @@ begin
   end;
 end;
 
+procedure TfrmEditor.cm_FileReload(const Params: array of string);
+begin
+  if bChanged then
+  begin
+    if not msgYesNo(rsMsgFileReloadWarning) then
+      Exit;
+  end;
+  OpenFile(FFileName);
+end;
 
 procedure TfrmEditor.cm_EditFind(const Params: array of string);
 begin
@@ -966,6 +981,7 @@ end;
 
 procedure TfrmEditor.cm_ConfHigh(const Params:array of string);
 begin
+  LastEditorUsedForConfiguration := Self;
   ShowOptions(TfrmOptionsEditor);
 end;
 

@@ -3,7 +3,7 @@
     -------------------------------------------------------------------------
     Open with other application dialog
 
-    Copyright (C) 2012  Alexander Koblov (alexx2000@mail.ru)
+    Copyright (C) 2012-2018  Alexander Koblov (alexx2000@mail.ru)
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -68,11 +68,13 @@ type
     FMimeType: String;
     FFileList: TStringList;
     procedure LoadApplicationList;
+    function TreeNodeCompare(Node1, Node2: TTreeNode): Integer;
+    procedure LoadBitmap(ANode: TTreeNode; const AName: String);
   public
     constructor Create(TheOwner: TComponent; AFileList: TStringList); reintroduce;
   end;
 
-procedure ShowOpenWithDlg(const FileList: TStringList);
+procedure ShowOpenWithDlg(TheOwner: TComponent; const FileList: TStringList);
 
 implementation
 
@@ -80,11 +82,33 @@ implementation
 
 uses
   LCLProc, DCStrUtils, uOSUtils, uPixMapManager, uGlobs, uMimeActions,
-  uMimeType, uLng, LazUTF8;
+  uMimeType, uLng, LazUTF8, Math;
 
-procedure ShowOpenWithDlg(const FileList: TStringList);
+const
+  CATEGORY_OTHER = 11; // 'Other' category index
+
+const
+  // See https://specifications.freedesktop.org/menu-spec/latest
+  CATEGORIES: array[0..12] of String =
+  (
+    'AudioVideo',
+    'Audio',
+    'Video',
+    'Development',
+    'Education',
+    'Game',
+    'Graphics',
+    'Network',
+    'Office',
+    'Science',
+    'Settings',
+    'System',
+    'Utility'
+  );
+
+procedure ShowOpenWithDlg(TheOwner: TComponent; const FileList: TStringList);
 begin
-  with TfrmOpenWith.Create(Application, FileList) do
+  with TfrmOpenWith.Create(TheOwner, FileList) do
   begin
     Show;
   end;
@@ -105,8 +129,23 @@ begin
   ImageList.Height:= gIconsSize;
   FMimeType:= GetFileMimeType(FFileList[0]);
   lblMimeType.Caption:= Format(lblMimeType.Caption, [FMimeType]);
+  with tvApplications do
+  begin
+    LoadBitmap(Items.AddChild(nil, rsOpenWithMultimedia), 'applications-multimedia');
+    LoadBitmap(Items.AddChild(nil, rsOpenWithDevelopment), 'applications-development');
+    LoadBitmap(Items.AddChild(nil, rsOpenWithEducation), 'applications-education');
+    LoadBitmap(Items.AddChild(nil, rsOpenWithGames), 'applications-games');
+    LoadBitmap(Items.AddChild(nil, rsOpenWithGraphics), 'applications-graphics');
+    LoadBitmap(Items.AddChild(nil, rsOpenWithNetwork), 'applications-internet');
+    LoadBitmap(Items.AddChild(nil, rsOpenWithOffice), 'applications-office');
+    LoadBitmap(Items.AddChild(nil, rsOpenWithScience), 'applications-science');
+    LoadBitmap(Items.AddChild(nil, rsOpenWithSettings), 'preferences-system');
+    LoadBitmap(Items.AddChild(nil, rsOpenWithSystem), 'applications-system');
+    LoadBitmap(Items.AddChild(nil, rsOpenWithUtility), 'applications-accessories');
+    LoadBitmap(Items.AddChild(nil, rsOpenWithOther), 'applications-other');
+  end;
   LoadApplicationList;
-  tvApplications.AlphaSort;
+  tvApplications.CustomSort(@TreeNodeCompare);
 end;
 
 procedure TfrmOpenWith.chkCustomCommandChange(Sender: TObject);
@@ -158,8 +197,11 @@ begin
     end
   else if tvApplications.SelectionCount > 0 then
     begin
-      DesktopFile:= PDesktopFileEntry(tvApplications.Selected.Data);
-      fneCommand.Text:= DesktopFile^.DesktopFilePath;
+      if Assigned(tvApplications.Selected.Data) then
+      begin
+        DesktopFile:= PDesktopFileEntry(tvApplications.Selected.Data);
+        fneCommand.Text:= DesktopFile^.DesktopFilePath;
+      end;
     end;
   if Assigned(DesktopFile) then
   begin
@@ -180,8 +222,11 @@ procedure TfrmOpenWith.tvApplicationsDeletion(Sender: TObject; Node: TTreeNode);
 var
   DesktopFile: PDesktopFileEntry;
 begin
-  DesktopFile:= PDesktopFileEntry(Node.Data);
-  Dispose(DesktopFile);
+  if Assigned(Node.Data) then
+  begin
+    DesktopFile:= PDesktopFileEntry(Node.Data);
+    Dispose(DesktopFile);
+  end;
 end;
 
 procedure TfrmOpenWith.tvApplicationsSelectionChanged(Sender: TObject);
@@ -191,8 +236,15 @@ begin
   if tvApplications.SelectionCount > 0 then
   begin
     chkCustomCommand.Checked:= False;
-    DesktopFile:= PDesktopFileEntry(tvApplications.Selected.Data);
-    fneCommand.Text:= DesktopFile^.ExecWithParams;
+    if (tvApplications.Selected.Data = nil) then
+    begin
+      DesktopFile:= nil;
+      fneCommand.Text:= EmptyStr;
+    end
+    else begin
+      DesktopFile:= PDesktopFileEntry(tvApplications.Selected.Data);
+      fneCommand.Text:= DesktopFile^.ExecWithParams;
+    end;
   end;
 end;
 
@@ -201,12 +253,31 @@ const
   Folders: array [1..2] of String = ('/.local/share/applications',
                                          '/usr/share/applications');
 var
-  I, J: Integer;
-  Bitmap: TBitmap;
-  ImageIndex: PtrInt;
+  I, J, K: Integer;
   TreeNode: TTreeNode;
+  Index, Count: Integer;
   Applications: TStringList;
   DesktopFile: PDesktopFileEntry;
+
+  function GetCategoryIndex(const Category: String): Integer;
+  var
+    Index: Integer;
+  begin
+    Result:= CATEGORY_OTHER; // Default 'other' category
+    for Index:= Low(CATEGORIES) to High(CATEGORIES) do
+    begin
+      if SameText(CATEGORIES[Index], Category) then
+      begin
+        if Index < 3 then
+          Result:= 0
+        else begin
+          Result:= Index - 2;
+        end;
+        Break;
+      end;
+    end;
+  end;
+
 begin
   Folders[1]:= GetHomeDir + Folders[1];
   for I:= Low(Folders) to High(Folders) do
@@ -217,7 +288,7 @@ begin
       DesktopFile:= GetDesktopEntry(Applications[J]);
       if Assigned(DesktopFile) then
       begin
-        if DesktopFile^.Hidden or (Pos('Screensaver', DesktopFile^.Categories) > 0) then
+        if DesktopFile^.Hidden or Contains(DesktopFile^.Categories, 'Screensaver') then
         begin
           Dispose(DesktopFile);
           Continue;
@@ -227,23 +298,62 @@ begin
           DesktopFilePath:= ExtractDirLevel(Folders[I] + PathDelim, DesktopFilePath);
           DesktopFilePath:= StringReplace(DesktopFilePath, PathDelim, '-', [rfReplaceAll]);
         end;
-        TreeNode:= tvApplications.Items.AddChild(nil, DesktopFile^.DisplayName);
-        TreeNode.Data:= DesktopFile;
-        ImageIndex:= PixMapManager.GetIconByName(DesktopFile^.IconName);
-        if ImageIndex >= 0 then
-        begin
-          Bitmap:= PixMapManager.GetBitmap(ImageIndex);
-          if Assigned(Bitmap) then
+
+        // Determine application category
+        Count:= Min(3, Length(DesktopFile^.Categories));
+        if Count = 0 then
+          Index:= CATEGORY_OTHER
+        else begin
+          for K:= 0 to Count - 1 do
           begin
-            TreeNode.ImageIndex:= ImageList.Add(Bitmap, nil);
-            TreeNode.SelectedIndex:= TreeNode.ImageIndex;
-            TreeNode.StateIndex:= TreeNode.ImageIndex;
-            Bitmap.Free;
+            Index:= GetCategoryIndex(DesktopFile^.Categories[K]);
+            if Index <> CATEGORY_OTHER then Break;
           end;
         end;
+
+        TreeNode:= tvApplications.Items.TopLvlItems[Index];
+        TreeNode:= tvApplications.Items.AddChild(TreeNode, DesktopFile^.DisplayName);
+        TreeNode.Data:= DesktopFile;
+
+        LoadBitmap(TreeNode, DesktopFile^.IconName);
       end;
     end;
     Applications.Free;
+  end;
+  // Hide empty categories
+  for Index:= 0 to tvApplications.Items.TopLvlCount - 1 do
+  begin
+    if tvApplications.Items.TopLvlItems[Index].Count = 0 then
+      tvApplications.Items.TopLvlItems[Index].Visible:= False;
+  end;
+end;
+
+function TfrmOpenWith.TreeNodeCompare(Node1, Node2: TTreeNode): Integer;
+begin
+  if SameText(Node1.Text, rsOpenWithOther) then
+    Result:= +1
+  else if SameText(Node2.Text, rsOpenWithOther) then
+    Result:= -1
+  else
+    Result := LazUTF8.Utf8CompareStr(Node1.Text, Node2.Text);
+end;
+
+procedure TfrmOpenWith.LoadBitmap(ANode: TTreeNode; const AName: String);
+var
+  Bitmap: TBitmap;
+  ImageIndex: PtrInt;
+begin
+  ImageIndex:= PixMapManager.GetIconByName(AName);
+  if ImageIndex >= 0 then
+  begin
+    Bitmap:= PixMapManager.GetBitmap(ImageIndex);
+    if Assigned(Bitmap) then
+    begin
+      ANode.ImageIndex:= ImageList.Add(Bitmap, nil);
+      ANode.SelectedIndex:= ANode.ImageIndex;
+      ANode.StateIndex:= ANode.ImageIndex;
+      Bitmap.Free;
+    end;
   end;
 end;
 

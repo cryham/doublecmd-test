@@ -39,10 +39,16 @@ type
     FCopyAttributesOptions: TCopyAttributesOptions;
     FFileExistsOption: TFileSourceOperationOptionFileExists;
 
+    FCurrentFile: TFile;
+    FCurrentTargetFile: TFile;
+    FCurrentTargetFilePath: String;
+
     AskQuestion: TAskQuestionFunction;
     AbortOperation: TAbortOperationFunction;
     CheckOperationState: TCheckOperationStateFunction;
     UpdateStatistics: TUpdateStatisticsFunction;
+    ShowCompareFilesUI: TShowCompareFilesUIFunction;
+    ShowCompareFilesUIByFileObject: TShowCompareFilesUIByFileObjectFunction;
 
     procedure ShowError(sMessage: String);
     procedure LogMessage(sMessage: String; logOptions: TLogOptions; logMsgType: TLogMsgType);
@@ -50,6 +56,7 @@ type
     function ProcessDirectory(aFile: TFile; AbsoluteTargetFileName: String): LongInt;
     function ProcessFile(aFile: TFile; AbsoluteTargetFileName: String; var Statistics: TFileSourceCopyOperationStatistics): LongInt;
 
+    procedure QuestionActionHandler(Action: TFileSourceOperationUIAction);
     function FileExists(aFile: TFile;
                         AbsoluteTargetFileName: String;
                         AllowResume: Boolean): TFileSourceOperationOptionFileExists;
@@ -62,6 +69,8 @@ type
                        AbortOperationFunction: TAbortOperationFunction;
                        CheckOperationStateFunction: TCheckOperationStateFunction;
                        UpdateStatisticsFunction: TUpdateStatisticsFunction;
+                       ShowCompareFilesUIFunction: TShowCompareFilesUIFunction;
+                       ShowCompareFilesUIByFileObjectFunction: TShowCompareFilesUIByFileObjectFunction;
                        OperationThread: TThread;
                        Mode: TWfxPluginOperationHelperMode;
                        TargetPath: String
@@ -85,7 +94,7 @@ type
 implementation
 
 uses
-  uFileProcs, DCStrUtils, uLng, uWfxModule, uFileSystemUtil, uFileProperty,
+  uFileProcs, StrUtils, DCStrUtils, uLng, uWfxModule, uFileSystemUtil, uFileProperty,
   DCDateTimeUtils, DCBasicTypes;
 
 function WfxRenameFile(aFileSource: IWfxPluginFileSource; const aFile: TFile; const NewFileName: String): Boolean;
@@ -233,31 +242,59 @@ begin
   end;
 end;
 
+procedure TWfxPluginOperationHelper.QuestionActionHandler(
+  Action: TFileSourceOperationUIAction);
+begin
+  if Action = fsouaCompare then
+  begin
+    if Assigned(FCurrentTargetFile) then
+      ShowCompareFilesUIByFileObject(FCurrentFile, FCurrentTargetFile)
+    else
+      ShowCompareFilesUI(FCurrentFile, FCurrentTargetFilePath);
+  end;
+end;
+
+function FileExistsMessage(TargetFile: TFile; SourceFile: TFile): String;
+begin
+  Result:= rsMsgFileExistsOverwrite + LineEnding + TargetFile.FullPath + LineEnding +
+           Format(rsMsgFileExistsFileInfo, [Numb2USA(IntToStr(TargetFile.Size)), DateTimeToStr(TargetFile.ModificationTime)]) + LineEnding;
+  Result:= Result + LineEnding + rsMsgFileExistsWithFile + LineEnding + SourceFile.FullPath + LineEnding +
+           Format(rsMsgFileExistsFileInfo, [Numb2USA(IntToStr(SourceFile.Size)), DateTimeToStr(SourceFile.ModificationTime)]);
+end;
+
 function TWfxPluginOperationHelper.FileExists(aFile: TFile;
   AbsoluteTargetFileName: String; AllowResume: Boolean
   ): TFileSourceOperationOptionFileExists;
 const
-  Responses: array[0..4] of TFileSourceOperationUIResponse
-    = (fsourOverwrite, fsourSkip, fsourResume, fsourOverwriteAll, fsourSkipAll);
-  ResponsesNoResume: array[0..3] of TFileSourceOperationUIResponse
-    = (fsourOverwrite, fsourSkip, fsourOverwriteAll, fsourSkipAll);
+  Responses: array[0..6] of TFileSourceOperationUIResponse
+    = (fsourOverwrite, fsourSkip, fsourResume, fsourOverwriteAll, fsourSkipAll,
+       fsouaCompare, fsourCancel);
+  ResponsesNoResume: array[0..5] of TFileSourceOperationUIResponse
+    = (fsourOverwrite, fsourSkip, fsourOverwriteAll, fsourSkipAll, fsouaCompare,
+       fsourCancel);
 var
   Message: String;
   PossibleResponses: array of TFileSourceOperationUIResponse;
 begin
   case FFileExistsOption of
     fsoofeNone:
-      begin
+      try
+        FCurrentTargetFile := nil;
         case AllowResume of
           True :  PossibleResponses := Responses;
           False:  PossibleResponses := ResponsesNoResume;
         end;
-        if FMode <> wpohmCopyOut then
-          Message:= Format(rsMsgFileExistsRwrt, [AbsoluteTargetFileName])
+        if FMode = wpohmCopyOut then
+          Message := uFileSystemUtil.FileExistsMessage(AbsoluteTargetFileName, aFile.FullPath, aFile.Size, aFile.ModificationTime)
+        else if FWfxPluginFileSource.FillSingleFile(AbsoluteTargetFileName, FCurrentTargetFile) then
+          Message := FileExistsMessage(FCurrentTargetFile, aFile)
         else
-          Message:= FileExistsMessage(AbsoluteTargetFileName, aFile.FullPath, aFile.Size, aFile.ModificationTime);
+          Message := Format(rsMsgFileExistsRwrt, [AbsoluteTargetFileName]);
+        FCurrentFile := aFile;
+        FCurrentTargetFilePath := AbsoluteTargetFileName;
         case AskQuestion(Message, '',
-                         PossibleResponses, fsourOverwrite, fsourSkip) of
+                         PossibleResponses, fsourOverwrite, fsourSkip,
+                         @QuestionActionHandler) of
           fsourOverwrite:
             Result := fsoofeOverwrite;
           fsourSkip:
@@ -277,7 +314,12 @@ begin
               FFileExistsOption := fsoofeSkip;
               Result := fsoofeSkip;
             end;
+          fsourNone,
+          fsourCancel:
+            AbortOperation;
         end;
+      finally
+        FreeAndNil(FCurrentTargetFile);
       end;
 
     else
@@ -306,6 +348,8 @@ constructor TWfxPluginOperationHelper.Create(FileSource: IFileSource;
                                              AbortOperationFunction: TAbortOperationFunction;
                                              CheckOperationStateFunction: TCheckOperationStateFunction;
                                              UpdateStatisticsFunction: TUpdateStatisticsFunction;
+                                             ShowCompareFilesUIFunction: TShowCompareFilesUIFunction;
+                                             ShowCompareFilesUIByFileObjectFunction: TShowCompareFilesUIByFileObjectFunction;
                                              OperationThread: TThread;
                                              Mode: TWfxPluginOperationHelperMode;
                                              TargetPath: String
@@ -316,6 +360,8 @@ begin
   AbortOperation := AbortOperationFunction;
   CheckOperationState := CheckOperationStateFunction;
   UpdateStatistics := UpdateStatisticsFunction;
+  ShowCompareFilesUI := ShowCompareFilesUIFunction;
+  ShowCompareFilesUIByFileObject := ShowCompareFilesUIByFileObjectFunction;
   FOperationThread:= OperationThread;
   FMode := Mode;
   FInternal:= (FMode in [wpohmCopy, wpohmMove]);
@@ -400,6 +446,8 @@ begin
         iResult := ProcessFile(aFile, sTargetFile, Statistics)
       else
         iResult := ProcessDirectory(aFile, sTargetFile);
+
+      if iResult = FS_FILE_USERABORT then AbortOperation();
 
       if iResult = FS_FILE_OK then CopyProperties(aFile, sTargetFile);
 

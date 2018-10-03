@@ -4,7 +4,7 @@
    Find dialog, with searching in thread
 
    Copyright (C) 2003-2004 Radek Cervinka (radek.cervinka@centrum.cz)
-   Copyright (C) 2006-2017 Alexander Koblov (alexx2000@mail.ru)
+   Copyright (C) 2006-2018 Alexander Koblov (alexx2000@mail.ru)
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -34,7 +34,7 @@ uses
   fAttributesEdit, uDsxModule, DsxPlugin, uFindThread, uFindFiles,
   uSearchTemplate, fSearchPlugin, uFileView, types, DCStrUtils,
   ActnList, uOSForms, uShellContextMenu, uExceptions, uFileSystemFileSource,
-  uFormCommands, uHotkeyManager;
+  uFormCommands, uHotkeyManager, LCLVersion;
 
 {$IF DEFINED(LCLGTK2) or DEFINED(LCLQT) or DEFINED(LCLQT5)}
   {$DEFINE FIX_DEFAULT}
@@ -100,6 +100,7 @@ type
     cbTextRegExp: TCheckBox;
     cbFindInArchive: TCheckBox;
     cbOpenedTabs: TCheckBox;
+    chkHex: TCheckBox;
     cmbExcludeDirectories: TComboBoxWithDelItems;
     cmbNotOlderThanUnit: TComboBox;
     cmbFileSizeUnit: TComboBox;
@@ -210,6 +211,7 @@ type
     procedure cbRegExpChange(Sender: TObject);
     procedure cbTextRegExpChange(Sender: TObject);
     procedure cbSelectedFilesChange(Sender: TObject);
+    procedure chkHexChange(Sender: TObject);
     procedure cmbEncodingSelect(Sender: TObject);
     procedure cbFindTextChange(Sender: TObject);
     procedure cbUsePluginChange(Sender: TObject);
@@ -690,7 +692,8 @@ begin
   CloneMainAction(frmMain.actConfigSearches, actList, miOptions, 0);
 
 {$IF DEFINED(FIX_DEFAULT)}
-  Application.AddOnKeyDownBeforeHandler(@FormKeyDown);
+  if (ListOffrmFindDlgInstance.Count = 0) then
+    Application.AddOnKeyDownBeforeHandler(@FormKeyDown);
 {$ENDIF}
 end;
 
@@ -766,6 +769,7 @@ end;
 { TfrmFindDlg.cbFindTextChange }
 procedure TfrmFindDlg.cbFindTextChange(Sender: TObject);
 begin
+  EnableControl(chkHex, cbFindText.Checked);
   EnableControl(cmbFindText, cbFindText.Checked);
   EnableControl(cmbEncoding, cbFindText.Checked);
   EnableControl(cbCaseSens, cbFindText.Checked);
@@ -843,6 +847,7 @@ begin
 
   // find/replace text
   // do not clear search/replace text just clear checkbox
+  chkHex.Checked := False;
   cbFindText.Checked := False;
   cbReplaceText.Checked := False;
   cbCaseSens.Checked := False;
@@ -1005,6 +1010,21 @@ begin
   cmbFindPathStart.Enabled := not cbSelectedFiles.Checked;
 end;
 
+procedure TfrmFindDlg.chkHexChange(Sender: TObject);
+begin
+  if chkHex.Checked then
+  begin
+    cbCaseSens.Checked:= True;
+    cmbEncoding.ItemIndex:= 0;
+    cbTextRegExp.Checked:= False;
+    cbReplaceText.Checked:= False;
+  end;
+  cbCaseSens.Enabled:= not chkHex.Checked;
+  cmbEncoding.Enabled:= not chkHex.Checked;
+  cbTextRegExp.Enabled:= not chkHex.Checked;
+  cbReplaceText.Enabled:= not chkHex.Checked;
+end;
+
 { TfrmFindDlg.btnSelDirClick }
 procedure TfrmFindDlg.btnSelDirClick(Sender: TObject);
 var
@@ -1090,6 +1110,7 @@ begin
     FindText := cmbFindText.Text;
     IsReplaceText := cbReplaceText.Checked;
     ReplaceText := cmbReplaceText.Text;
+    HexValue := chkHex.Checked;
     CaseSensitive := cbCaseSens.Checked;
     NotContainingText := cbNotContainingText.Checked;
     TextRegExp := cbTextRegExp.Checked;
@@ -1387,6 +1408,17 @@ begin
     if not mbDirectoryExists(sPath) then
     begin
       ShowMessage(Format(rsFindDirNoEx, [sPath]));
+      Exit;
+    end;
+  end;
+
+  if (cbFindText.Checked and chkHex.Checked) then
+  try
+    HexToBin(cmbFindText.Text);
+  except
+    on E: EConvertError do
+    begin
+      MessageDlg(E.Message, mtError, [mbOK], 0, mbOK);
       Exit;
     end;
   end;
@@ -1744,7 +1776,8 @@ end;
 procedure TfrmFindDlg.FormDestroy(Sender: TObject);
 begin
 {$IF DEFINED(FIX_DEFAULT)}
-  Application.RemoveOnKeyDownBeforeHandler(@FormKeyDown);
+  if ListOffrmFindDlgInstance.Count = 0 then
+    Application.RemoveOnKeyDownBeforeHandler(@FormKeyDown);
 {$ENDIF}
   FreeAndNil(FoundedStringCopy);
   FreeAndNil(DsxPlugins);
@@ -1753,15 +1786,33 @@ end;
 {$IF DEFINED(FIX_DEFAULT)}
 procedure TfrmFindDlg.FormKeyDown(Sender: TObject; var Key: Word;
   Shift: TShiftState);
+var
+  AParentForm: TCustomForm;
 begin
   if Key = VK_RETURN then
   begin
-    if (Sender = lsFoundedFiles) then
-      TCustomListBox(Sender).OnKeyDown(Sender, Key, Shift)
-    else if (Sender is TCustomButton) and (Screen.ActiveForm = Self) then
+    if Sender is TControl then
     begin
-      TCustomButton(Sender).Click;
-      Key:= 0;
+      AParentForm := GetParentForm(TControl(Sender));
+      if (AParentForm is TfrmFindDlg) then
+      begin
+        if (Sender = TfrmFindDlg(AParentForm).lsFoundedFiles) then
+          TCustomListBox(Sender).OnKeyDown(Sender, Key, Shift)
+        else if (Sender is TCustomButton) then
+        begin
+          TCustomButton(Sender).Click;
+          Key:= 0;
+        end
+{$if (lcl_fullversion < 1090000) and defined(lclgtk2)}
+        else begin
+          Key := 0;
+          if btnStart.Enabled then
+            btnStart.Click
+          else
+            btnStop.Click;
+        end;
+{$endif}
+      end;
     end;
   end;
 end;
@@ -1994,6 +2045,7 @@ begin
     cmbFindText.Text := FindText;
     cbReplaceText.Checked := IsReplaceText;
     cmbReplaceText.Text := ReplaceText;
+    chkHex.Checked := HexValue;
     cbCaseSens.Checked := CaseSensitive;
     cbNotContainingText.Checked := NotContainingText;
     cbTextRegExp.Checked := TextRegExp;

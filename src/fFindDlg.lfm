@@ -18,7 +18,7 @@ object frmFindDlg: TfrmFindDlg
   Position = poScreenCenter
   SessionProperties = 'Height;Left;Top;Width;WindowState'
   ShowInTaskBar = stAlways
-  LCLVersion = '1.8.0.5'
+  LCLVersion = '1.8.3.0'
   object pnlFindFile: TPanel
     Left = 3
     Height = 387
@@ -507,6 +507,18 @@ object frmFindDlg: TfrmFindDlg
             Caption = 'Regular &expression'
             OnChange = cbTextRegExpChange
             TabOrder = 5
+          end
+          object chkHex: TCheckBox
+            AnchorSideLeft.Control = cbTextRegExp
+            AnchorSideTop.Control = cmbEncoding
+            AnchorSideTop.Side = asrCenter
+            Left = 403
+            Height = 24
+            Top = 86
+            Width = 109
+            Caption = 'Hexadecimal'
+            OnChange = chkHexChange
+            TabOrder = 7
           end
         end
       end

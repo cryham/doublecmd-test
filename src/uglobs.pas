@@ -12,7 +12,7 @@
 
    Copyright (C) 2008  Dmitry Kolomiets (B4rr4cuda@rambler.ru)
    Copyright (C) 2008  Vitaly Zotov (vitalyzotov@mail.ru)
-   Copyright (C) 2006-2017 Alexander Koblov (alexx2000@mail.ru)
+   Copyright (C) 2006-2018 Alexander Koblov (alexx2000@mail.ru)
 
 }
 
@@ -70,7 +70,7 @@ type
   { How initially progress is shown for file operations }
   TFileOperationsProgressKind = (fopkSeparateWindow, fopkSeparateWindowMinimized, fopkOperationsPanel);
   { Operations with confirmation }
-  TFileOperationsConfirmation = (focCopy, focMove, focDelete, focDeleteToTrash);
+  TFileOperationsConfirmation = (focCopy, focMove, focDelete, focDeleteToTrash, focVerifyChecksum);
   TFileOperationsConfirmations = set of TFileOperationsConfirmation;
   { Internal Associations}
   //What the use wish for the context menu
@@ -122,9 +122,12 @@ type
 
   THotKeySortOrder = (hksoByCommand, hksoByHotKeyGrouped, hksoByHotKeyOnePerRow);
 
+  TToolTipMode = (tttmCombineDcSystem, tttmDcSystemCombine, tttmDcIfPossThenSystem, tttmDcOnly, tttmSystemOnly);
+  TToolTipHideTimeOut = (ttthtSystem, tttht1Sec, tttht2Sec, tttht3Sec, tttht5Sec, tttht10Sec, tttht30Sec, tttht1Min, ttthtNeverHide);
+
 const
   { Default hotkey list version number }
-  hkVersion = 42;
+  hkVersion = 44;
   // 40 - In "Main" context, added the "Ctrl+Shift+F7" for "cm_AddNewSearch".
   //      In "Find Files" context, changed "cm_Start" that was "Enter" for "F9".
   //      In "Find Files" context, added "Alt+F7" as a valid alternative for "cm_PageStandard".
@@ -145,6 +148,9 @@ const
   // 9   - few new options regarding tabs
   // 10  - changed Icons/CustomDriveIcons to Icons/CustomIcons
   ConfigVersion = 10;
+
+  // Configuration related filenames
+  sMULTIARC_FILENAME = 'multiarc.ini';
 
   TKeyTypingModifierToShift: array[TKeyTypingModifier] of TShiftState =
     ([], [ssAlt], [ssCtrl, ssAlt]);
@@ -257,6 +263,7 @@ var
   gMouseSelectionEnabled: Boolean;
   gMouseSelectionButton: Integer;
   gMouseSingleClickStart: Integer;
+  gMouseSelectionIconClick: Integer;
 
   gAutoFillColumns: Boolean;
   gAutoSizeColumn: Integer;
@@ -377,6 +384,7 @@ var
   gIconsInMenus: Boolean;
   gIconsInMenusSize,
   gIconsInMenusSizeNew: Integer;
+  gShowHiddenDimmed: Boolean;
   gIconTheme: String;
 
   { Keys page }
@@ -443,7 +451,9 @@ var
   gInplaceRename,
   gDblClickToParent,
   gGoToRoot: Boolean;
-  gShowToolTipMode: Boolean;
+  gShowToolTip: Boolean;
+  gShowToolTipMode: TToolTipMode;
+  gToolTipHideTimeOut: TToolTipHideTimeOut;
   gThumbSize: TSize;
   gThumbSave: Boolean;
   gSearchDefaultTemplate: String;
@@ -499,7 +509,9 @@ var
   gImagePaintMode: String;
   gImagePaintWidth,
   gColCount,
-  gViewerMode: Integer;
+  gViewerMode,
+  gMaxTextWidth,
+  gTabSpaces : Integer;
   gImagePaintColor,
   gBookBackgroundColor,
   gBookFontColor: TColor;
@@ -508,6 +520,7 @@ var
   { Editor }
   gEditWaitTime: Integer;
   gEditorSynEditOptions: TSynEditorOptions;
+  gEditorSynEditTabWidth: Integer;
 
   {SyncDirs}
   gSyncDirsSubdirs,
@@ -719,7 +732,7 @@ end;
 
 function LoadMultiArcConfig(var {%H-}ErrorMessage: String): Boolean;
 begin
-  gMultiArcList.LoadFromFile(gpCfgDir + 'multiarc.ini');
+  gMultiArcList.LoadFromFile(gpCfgDir + sMULTIARC_FILENAME);
   Result := True;
 end;
 
@@ -864,8 +877,19 @@ begin
       AddIfNotExists(['F8','','',
                       'Shift+F8','','trashcan=reversesetting',''], 'cm_Delete');
       AddIfNotExists(['F9'],[],'cm_RunTerm');
-      AddIfNotExists(['Ctrl+7'],[],'cm_ShowCmdLineHistory');
-      AddIfNotExists(['Ctrl+Down'],'cm_ShowCmdLineHistory',['Ctrl+7'],[]); //Historic backward support reason...
+
+      if HotMan.Version < 44 then
+      begin
+        HMHotKey:= FindByCommand('cm_ShowCmdLineHistory');
+        if Assigned(HMHotKey) and HMHotKey.SameShortcuts(['Ctrl+7']) then
+        begin
+          Remove(HMHotKey);
+          AddIfNotExists(['Alt+F8'],'cm_ShowCmdLineHistory',['Ctrl+Down'],[]);
+        end;
+      end;
+
+      AddIfNotExists(['Alt+F8','','',
+                      'Ctrl+Down','',''], 'cm_ShowCmdLineHistory');
       AddIfNotExists(['Ctrl+B'],[],'cm_FlatView');
       AddIfNotExists(['Ctrl+D'],[],'cm_DirHotList');
       AddIfNotExists(['Ctrl+F'],[],'cm_QuickFilter');
@@ -923,6 +947,29 @@ begin
       AddIfNotExists(['Alt+Right'],[],'cm_ViewHistoryNext');
       AddIfNotExists(['Alt+Shift+Enter'],[],'cm_CountDirContent');
       AddIfNotExists(['Alt+Shift+F9'],[],'cm_TestArchive');
+      AddIfNotExists([
+         'Alt+1','','index=1','',
+         'Alt+2','','index=2','',
+         'Alt+3','','index=3','',
+         'Alt+4','','index=4','',
+         'Alt+5','','index=5','',
+         'Alt+6','','index=6','',
+         'Alt+7','','index=7','',
+         'Alt+8','','index=8','',
+         'Alt+9','','index=9','',
+         'Alt+`','','index=-1',''],
+       'cm_ActivateTabByIndex');
+      AddIfNotExists([
+        'Ctrl+1','','index=1','',
+        'Ctrl+2','','index=2','',
+        'Ctrl+3','','index=3','',
+        'Ctrl+4','','index=4','',
+        'Ctrl+5','','index=5','',
+        'Ctrl+6','','index=6','',
+        'Ctrl+7','','index=7','',
+        'Ctrl+8','','index=8','',
+        'Ctrl+9','','index=9',''],
+      'cm_OpenDriveByIndex');
 
       if HotMan.Version < 38 then
       begin
@@ -1034,6 +1081,15 @@ begin
       AddIfNotExists(['F2'],[],'cm_SaveDescription');
     end;
 
+  HMForm := HotMan.Forms.FindOrCreate('Synchronize Directories');
+  with HMForm.Hotkeys do
+    begin
+      AddIfNotExists(VK_M, [ssModifier], 'cm_SelectClear');
+      AddIfNotExists(VK_D, [ssModifier], 'cm_SelectCopyDefault');
+      AddIfNotExists(VK_W, [ssModifier], 'cm_SelectCopyReverse');
+      AddIfNotExists(VK_L, [ssModifier], 'cm_SelectCopyLeftToRight');
+      AddIfNotExists(VK_R, [ssModifier], 'cm_SelectCopyRightToLeft');
+    end;
 
   HMForm := HotMan.Forms.FindOrCreate('Editor');
   with HMForm.Hotkeys do
@@ -1190,8 +1246,8 @@ begin
       if not mbFileExists(gpCfgDir + 'pixmaps.txt') then
         CopyFile(gpGlobalCfgDir + 'pixmaps.txt', gpCfgDir + 'pixmaps.txt');
       // multiarc configuration file
-      if not mbFileExists(gpCfgDir + 'multiarc.ini') then
-        CopyFile(gpGlobalCfgDir + 'multiarc.ini', gpCfgDir + 'multiarc.ini');
+      if not mbFileExists(gpCfgDir + sMULTIARC_FILENAME) then
+        CopyFile(gpGlobalCfgDir + sMULTIARC_FILENAME, gpCfgDir + sMULTIARC_FILENAME);
     end;
 end;
 
@@ -1316,6 +1372,7 @@ begin
   gMouseSelectionEnabled := True;
   gMouseSelectionButton := 0;  // Left
   gMouseSingleClickStart := 0;
+  gMouseSelectionIconClick := 0;
   gScrollMode := smLineByLine;
   gWheelScrollLines:= Mouse.WheelScrollLines;
   gAutoFillColumns := False;
@@ -1570,7 +1627,9 @@ begin
   gShowPathInPopup:=FALSE;
   gShowOnlyValidEnv:=TRUE;
   gWhereToAddNewHotDir := ahdSmart;
-  gShowToolTipMode := True;
+  gShowToolTip := True;
+  gShowToolTipMode := tttmCombineDcSystem;
+  gToolTipHideTimeOut := ttthtSystem;
   gThumbSave := True;
   gThumbSize.cx := 128;
   gThumbSize.cy := 128;
@@ -1599,6 +1658,7 @@ begin
   gIconsInMenus := False;
   gIconsInMenusSize := 16;
   gIconsInMenusSizeNew := gIconsInMenusSize;
+  gShowHiddenDimmed := False;
   gIconTheme := DC_THEME_NAME;
 
   { Ignore list page }
@@ -1619,6 +1679,8 @@ begin
   gImagePaintMode := 'Pen';
   gImagePaintWidth := 5;
   gColCount := 1;
+  gTabSpaces := 8;
+  gMaxTextWidth := 1024;
   gImagePaintColor := clRed;
   gBookBackgroundColor := clBlack;
   gBookFontColor := clWhite;
@@ -1628,6 +1690,7 @@ begin
   { Editor }
   gEditWaitTime := 2000;
   gEditorSynEditOptions := SYNEDIT_DEFAULT_OPTIONS;
+  gEditorSynEditTabWidth := 8;
 
   {SyncDirs}
   gSyncDirsSubdirs := False;
@@ -1932,8 +1995,8 @@ begin
   LoadConfigCheckErrors(@LoadHotManConfig, gpCfgDir + gNameSCFile, ErrorMessage);
 
   { MultiArc addons }
-  if mbFileExists(gpCfgDir + 'multiarc.ini') then
-    LoadConfigCheckErrors(@LoadMultiArcConfig, gpCfgDir + 'multiarc.ini', ErrorMessage);
+  if mbFileExists(gpCfgDir + sMULTIARC_FILENAME) then
+    LoadConfigCheckErrors(@LoadMultiArcConfig, gpCfgDir + sMULTIARC_FILENAME, ErrorMessage);
 
   { Various history }
   if mbFileExists(gpCfgDir + 'history.xml') then
@@ -2154,6 +2217,7 @@ begin
       gMouseSelectionEnabled := GetAttr(Node, 'Mouse/Selection/Enabled', gMouseSelectionEnabled);
       gMouseSelectionButton := GetValue(Node, 'Mouse/Selection/Button', gMouseSelectionButton);
       gMouseSingleClickStart := GetValue(Node, 'Mouse/SingleClickStart', gMouseSingleClickStart);
+      gMouseSelectionIconClick := GetValue(Node, 'Mouse/Selection/IconClick', gMouseSelectionIconClick);
       gScrollMode := TScrollMode(GetValue(Node, 'Mouse/ScrollMode', Integer(gScrollMode)));
       gWheelScrollLines:= GetValue(Node, 'Mouse/WheelScrollLines', gWheelScrollLines);
       gAutoFillColumns := GetValue(Node, 'AutoFillColumns', gAutoFillColumns);
@@ -2234,7 +2298,9 @@ begin
     Node := Root.FindNode('ToolTips');
     if Assigned(Node) then
     begin
-      gShowToolTipMode := GetValue(Node, 'ShowToolTipMode', gShowToolTipMode);
+      gShowToolTip := GetValue(Node, 'ShowToolTipMode', gShowToolTip);
+      gShowToolTipMode := TToolTipMode(GetValue(Node, 'ActualToolTipMode', Integer(gShowToolTipMode)));
+      gToolTipHideTimeOut := TToolTipHideTimeOut(GetValue(Node, 'ToolTipHideTimeOut', Integer(gToolTipHideTimeOut)));
       gFileInfoToolTip.Load(gConfig, Node);
     end;
 
@@ -2507,6 +2573,7 @@ begin
     if Assigned(Node) then
     begin
       gIconTheme := GetValue(Node, 'Theme', gIconTheme);
+      gShowHiddenDimmed := GetValue(Node, 'ShowHiddenDimmed', gShowHiddenDimmed);
       gShowIcons := TShowIconsMode(GetValue(Node, 'ShowMode', Integer(gShowIcons)));
       gIconOverlays := GetValue(Node, 'ShowOverlays', gIconOverlays);
       gIconsSize := GetValue(Node, 'Size', gIconsSize);
@@ -2555,6 +2622,8 @@ begin
       gImagePaintMode := GetValue(Node, 'PaintMode', gImagePaintMode);
       gImagePaintWidth := GetValue(Node, 'PaintWidth', gImagePaintWidth);
       gColCount    := GetValue(Node, 'NumberOfColumns', gColCount);
+      gTabSpaces := GetValue(Node, 'TabSpaces', gTabSpaces);
+      gMaxTextWidth := GetValue(Node, 'MaxTextWidth', gMaxTextWidth);
       gViewerMode  := GetValue(Node, 'ViewerMode'  , gViewerMode);
 
       gImagePaintColor := GetValue(Node, 'PaintColor', gImagePaintColor);
@@ -2573,6 +2642,7 @@ begin
     begin
       gEditWaitTime := GetValue(Node, 'EditWaitTime', gEditWaitTime);
       gEditorSynEditOptions := TSynEditorOptions(GetValue(Node, 'SynEditOptions', Integer(gEditorSynEditOptions)));
+      gEditorSynEditTabWidth := GetValue(Node, 'SynEditTabWidth', gEditorSynEditTabWidth);
     end;
 
     { SyncDirs }
@@ -2762,6 +2832,7 @@ begin
     SetAttr(SubNode, 'Selection/Enabled', gMouseSelectionEnabled);
     SetValue(SubNode, 'Selection/Button', gMouseSelectionButton);
     SetValue(SubNode, 'SingleClickStart', gMouseSingleClickStart);
+    SetValue(SubNode, 'Selection/IconClick', gMouseSelectionIconClick);
     SetValue(SubNode, 'ScrollMode', Integer(gScrollMode));
     SetValue(SubNode, 'WheelScrollLines', gWheelScrollLines);
     SetValue(Node, 'AutoFillColumns', gAutoFillColumns);
@@ -2832,7 +2903,9 @@ begin
 
     { ToolTips page }
     Node := FindNode(Root, 'ToolTips', True);
-    SetValue(Node, 'ShowToolTipMode', gShowToolTipMode);
+    SetValue(Node, 'ShowToolTipMode', gShowToolTip);
+    SetValue(Node, 'ActualToolTipMode', Integer(gShowToolTipMode));
+    SetValue(Node, 'ToolTipHideTimeOut', Integer(gToolTipHideTimeOut));
     gFileInfoToolTip.Save(gConfig, Node);
 
     { Layout page }
@@ -3010,6 +3083,7 @@ begin
     { Icons page }
     Node := FindNode(Root, 'Icons', True);
     SetValue(Node, 'Theme', gIconTheme);
+    SetValue(Node, 'ShowHiddenDimmed', gShowHiddenDimmed);
     SetValue(Node, 'ShowMode', Integer(gShowIconsNew));
     SetValue(Node, 'ShowOverlays', gIconOverlays);
     SetValue(Node, 'Size', gIconsSizeNew);
@@ -3046,6 +3120,8 @@ begin
     SetValue(Node, 'PaintMode', gImagePaintMode);
     SetValue(Node, 'PaintWidth', gImagePaintWidth);
     SetValue(Node, 'NumberOfColumns', gColCount);
+    SetValue(Node, 'TabSpaces', gTabSpaces);
+    SetValue(Node, 'MaxTextWidth', gMaxTextWidth);
     SetValue(Node, 'ViewerMode' , gViewerMode);
 
     SetValue(Node, 'PaintColor', gImagePaintColor);
@@ -3057,6 +3133,7 @@ begin
     Node := FindNode(Root, 'Editor',True);
     SetValue(Node, 'EditWaitTime', gEditWaitTime);
     SetValue(Node, 'SynEditOptions', Integer(gEditorSynEditOptions));
+    SetValue(Node, 'SynEditTabWidth', gEditorSynEditTabWidth);
 
     { SyncDirs }
     Node := FindNode(Root, 'SyncDirs', True);

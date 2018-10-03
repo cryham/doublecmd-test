@@ -117,7 +117,7 @@ function ShowOpenIconDialog(Owner: TCustomControl; var sFileName : String) : Boo
    Show open with dialog
    @param(FileList List of files to open with)
 }
-procedure ShowOpenWithDialog(const FileList: TStringList);
+procedure ShowOpenWithDialog(TheOwner: TComponent; const FileList: TStringList);
 {$ENDIF}
 
 implementation
@@ -129,7 +129,8 @@ uses
   , ComObj, fMain, DCOSUtils, uOSUtils, uFileSystemFileSource
   , uTotalCommander, FileUtil, Windows, ShlObj, uShlObjAdditional
   , uWinNetFileSource, uVfsModule, uLng, uMyWindows, DCStrUtils
-  , uThumbnailProvider, uDCReadSVG, uFileSourceUtil, Dialogs, Clipbrd
+  , uListGetPreviewBitmap, uThumbnailProvider, uDCReadSVG, uFileSourceUtil
+  , Dialogs, Clipbrd
   {$ENDIF}
   {$IFDEF UNIX}
   , BaseUnix, fFileProperties, uJpegThumb
@@ -319,9 +320,9 @@ begin
   end;
 
   // If parent window is normal window then call inherited method
-  if GetWindowLong(ActiveWindow, GWL_HWNDPARENT) <> 0 then
-    Result:= inherited ShowModal
-  else
+//  if GetWindowLong(ActiveWindow, GWL_HWNDPARENT) <> 0 then
+//    Result:= inherited ShowModal
+//  else
     begin
       Include(FFormState, fsModal);
       FParentWindow := ActiveWindow;
@@ -648,7 +649,7 @@ end;
 begin
   if ADrive.DriveType = dtVirtual then
     ShowVirtualDriveMenu(ADrive, X, Y, CloseEvent)
-  else if ADrive.DriveType <> dtSpecial then
+  else
   begin
     // Free previous created menu
     FreeThenNil(ShellContextMenu);
@@ -770,10 +771,10 @@ begin
 end;
 
 {$IF DEFINED(UNIX) AND NOT DEFINED(DARWIN)}
-procedure ShowOpenWithDialog(const FileList: TStringList);
+procedure ShowOpenWithDialog(TheOwner: TComponent; const FileList: TStringList);
 begin
   if not (UseKde and uKde.ShowOpenWithDialog(FileList)) then begin
-    fOpenWith.ShowOpenWithDlg(FileList);
+    fOpenWith.ShowOpenWithDlg(TheOwner, FileList);
   end;
 end;
 {$ENDIF}

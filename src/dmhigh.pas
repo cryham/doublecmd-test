@@ -102,7 +102,7 @@ implementation
 
 uses
   Graphics, SynEditTypes, FileUtil, uHighlighterProcs, DCXmlConfig, uGlobsPaths,
-  DCClassesUtf8, DCOSUtils, DCStrUtils, uLng, uMasks;
+  DCClassesUtf8, LazUTF8Classes, DCOSUtils, DCStrUtils, uLng, uMasks, uGlobs, uOSUtils;
 
 const
   csDefaultName = 'editor.col';
@@ -140,6 +140,8 @@ procedure TdmHighl.dmHighlCreate(Sender: TObject);
 var
   I: Integer;
   AList: TStringList;
+  AFileName: String = '';
+  ACache: TStringListUtf8;
   HighLighter: TSynCustomHighlighter;
 begin
   TSynLuaSyn.Create(Self).Tag:= 1;
@@ -150,18 +152,29 @@ begin
 {$POP}
   GetHighlighters(Self, SynHighlighterList, False);
 
-  AList:= FindAllFiles(gpHighPath, '*.hgl');
+  ACache:= TStringListUtf8.Create;
+  ACache.CaseSensitive:= FileNameCaseSensitive;
+  if not gUseConfigInProgramDir then begin
+    AFileName:= IncludeTrailingBackslash(GetAppDataDir) + 'highlighters' + ';';
+  end;
+  AList:= FindAllFiles(AFileName + gpHighPath, '*.hgl');
   for I:= 0 to AList.Count - 1 do
   begin
-    HighLighter:= TSynUniSyn.Create(Self);
-    try
-      TSynUniSyn(HighLighter).LoadFromFile(AList[I]);
-      SynHighlighterList.AddObject(TSynUniSyn(HighLighter).Info.General.Name, Highlighter);
-    except
-      FreeAndNil(HighLighter);
+    AFileName:= ExtractFileName(AList[I]);
+    if ACache.IndexOf(AFileName) < 0 then
+    begin
+      HighLighter:= TSynUniSyn.Create(Self);
+      try
+        TSynUniSyn(HighLighter).LoadFromFile(AList[I]);
+        SynHighlighterList.AddObject(TSynUniSyn(HighLighter).Info.General.Name, Highlighter);
+        ACache.Add(AFileName);
+      except
+        FreeAndNil(HighLighter);
+      end;
     end;
   end;
   AList.Free;
+  ACache.Free;
 
   for I:= 0 to SynHighlighterList.Count - 1 do
   begin
@@ -498,9 +511,20 @@ begin
   if (Result = nil) and (SynEdit.Lines.Count > 0) then
   begin
     Extension:= SynEdit.Lines[0];
-    // Unix shell script
-    if StrBegins(Extension, '#!') and (Pos('sh', Extension) > 0) then
-      Result:= SynUNIXShellScriptSyn1;
+    if StrBegins(Extension, '<?xml') then
+      Result:= SynXMLSyn1
+    else if StrBegins(Extension, '#!') then
+    begin
+      // Unix shell script
+      if (Pos('sh', Extension) > 0) then
+        Result:= SynUNIXShellScriptSyn1
+      // Python script
+      else if (Pos('python', Extension) > 0) then
+        Result:= SynPythonSyn1
+      // Perl script
+      else if (Pos('perl', Extension) > 0) then
+        Result:= SynPerlSyn1;
+    end;
   end;
   // Default syntax highlighter
   if (Result = nil) then Result:= SynPlainTextHighlighter;

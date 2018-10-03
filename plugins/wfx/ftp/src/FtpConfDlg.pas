@@ -3,7 +3,7 @@
    -------------------------------------------------------------------------
    Wfx plugin for working with File Transfer Protocol
 
-   Copyright (C) 2009-2015 Alexander Koblov (alexx2000@mail.ru)
+   Copyright (C) 2009-2018 Alexander Koblov (alexx2000@mail.ru)
 
    This library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -30,14 +30,18 @@ unit FtpConfDlg;
 interface
 
 uses
-  SysUtils, Extension;
+  SysUtils, Extension, FtpFunc;
 
-function ShowFtpConfDlg: Boolean;
+function ShowFtpConfDlg(Connection: TConnection): Boolean;
   
 implementation
 
 uses
-  LazUTF8, DynLibs, FtpFunc, FtpUtils, blcksock, ssl_openssl_lib, libssh;
+  LazUTF8, DynLibs, FtpUtils, blcksock, ssl_openssl_lib, libssh, FtpProxy, TypInfo;
+
+var
+  ProxyIndex: Integer;
+  gConnection: TConnection;
 
 procedure ShowWarningSSL;
 begin
@@ -63,10 +67,169 @@ begin
   end;
 end;
 
+procedure EnableControls(pDlg: PtrUInt);
+begin
+  with gStartupInfo do
+  begin
+    SendDlgMsg(pDlg, 'gbSSH', DM_ENABLE, PtrInt(gConnection.OpenSSH), 0);
+    SendDlgMsg(pDlg, 'gbFTP', DM_ENABLE, PtrInt(not gConnection.OpenSSH), 0);
+    if not gConnection.OpenSSH then
+      SendDlgMsg(pDlg, 'chkOnlySCP', DM_SETCHECK, 0, 0)
+    else begin
+      SendDlgMsg(pDlg, 'chkShowHidden', DM_SETCHECK, 0, 0);
+      SendDlgMsg(pDlg, 'chkPassiveMode', DM_SETCHECK, 0, 0);
+      SendDlgMsg(pDlg, 'chkKeepAliveTransfer', DM_SETCHECK, 0, 0);
+    end;
+  end;
+end;
+
+function CreateProxyID: String;
+var
+  Guid: TGuid;
+begin
+  if CreateGUID(Guid) = 0 then
+    Result := GUIDToString(Guid)
+  else
+    Result := IntToStr(Random(MaxInt));
+end;
+
+function GetProxyName(Proxy: TFtpProxy): String;
+begin
+  Result:= Proxy.Host;
+  if Proxy.Port <> '' then Result+= ':' + Proxy.Port;
+  Result+= ' (' + GetEnumName(TypeInfo(TProxyType), Integer(Proxy.ProxyType)) + ')';
+end;
+
+procedure LoadProxy(pDlg: PtrUInt);
+var
+  Data: PtrInt;
+  Text: String;
+  Proxy: TFtpProxy;
+begin
+  with gStartupInfo do
+  begin
+    if (ProxyIndex > 0) then
+    begin
+      Proxy:= TFtpProxy(SendDlgMsg(pDlg, 'cmbProxy', DM_LISTGETDATA, ProxyIndex, 0));
+      SendDlgMsg(pDlg, 'rgProxyType', DM_LISTSETITEMINDEX, PtrInt(Proxy.ProxyType) - 1, 0);
+      Text:= Proxy.Host;
+      if Proxy.Port <> EmptyStr then Text+= ':' + Proxy.Port;
+      Data:= PtrInt(PAnsiChar(Text));
+      SendDlgMsg(pDlg, 'edtProxyHost', DM_SETTEXT, Data, 0);
+      Data:= PtrInt(PAnsiChar(Proxy.User));
+      SendDlgMsg(pDlg, 'edtProxyUser', DM_SETTEXT, Data, 0);
+      Data:= PtrInt(PAnsiChar(Proxy.Password));
+      SendDlgMsg(pDlg, 'edtProxyPassword', DM_SETTEXT, Data, 0);
+    end
+    else begin
+      SendDlgMsg(pDlg, 'rgProxyType', DM_LISTSETITEMINDEX, 0, 0);
+      SendDlgMsg(pDlg, 'edtProxyHost', DM_SETTEXT, 0, 0);
+      SendDlgMsg(pDlg, 'edtProxyUser', DM_SETTEXT, 0, 0);
+      SendDlgMsg(pDlg, 'edtProxyPassword', DM_SETTEXT, 0, 0);
+    end;
+    SendDlgMsg(pDlg, 'gbLogon', DM_ENABLE, ProxyIndex, 0);
+    SendDlgMsg(pDlg, 'rgProxyType', DM_ENABLE, ProxyIndex, 0);
+    SendDlgMsg(pDlg, 'btnDelete', DM_ENABLE, ProxyIndex, 0);
+  end;
+end;
+
+procedure UpdateProxy(pDlg: PtrUInt);
+var
+  Data: PtrInt;
+  Text: String;
+  Proxy: TFtpProxy;
+begin
+  if (ProxyIndex > 0) then
+  begin
+    with gStartupInfo do
+    begin
+      Proxy:= TFtpProxy(SendDlgMsg(pDlg, 'cmbProxy', DM_LISTGETDATA, ProxyIndex, 0));
+      Data:= SendDlgMsg(pDlg, 'rgProxyType', DM_LISTGETITEMINDEX, 0, 0);
+      Proxy.ProxyType:= TProxyType(Data + 1);
+      Text:= PAnsiChar(SendDlgMsg(pDlg, 'edtProxyHost', DM_GETTEXT, 0, 0));
+      Proxy.Host:= ExtractConnectionHost(Text);
+      Proxy.Port:= ExtractConnectionPort(Text);
+      if Length(Text) > 0 then
+      begin
+        Text:= GetProxyName(Proxy);
+        Data:= PtrInt(PAnsiChar(Text));
+        SendDlgMsg(pDlg, 'cmbProxy', DM_LISTUPDATE, ProxyIndex, Data);
+      end;
+      Data:= SendDlgMsg(pDlg, 'edtProxyUser', DM_GETTEXT, 0, 0);
+      Proxy.User:= PAnsiChar(Data);
+      Data:= SendDlgMsg(pDlg, 'edtProxyPassword', DM_GETTEXT, 0, 0);
+      Proxy.Password:= PAnsiChar(Data);
+    end;
+  end;
+end;
+
+procedure LoadProxyList(pDlg: PtrUInt);
+var
+  Data: PtrInt;
+  Text: String;
+  Index: Integer;
+  Proxy: TFtpProxy;
+begin
+  ProxyIndex:= ProxyList.IndexOf(gConnection.Proxy) + 1;
+  with gStartupInfo do
+  begin
+    Data:= PtrInt(PAnsiChar('(None)'));
+    SendDlgMsg(pDlg, 'cmbProxy', DM_LISTADDSTR, Data, 0);
+    for Index:= 0 to ProxyList.Count - 1 do
+    begin
+      Proxy:= TFtpProxy(ProxyList.Objects[Index]).Clone;
+      Text:= GetProxyName(Proxy);
+      Data:= PtrInt(PAnsiChar(Text));
+      SendDlgMsg(pDlg, 'cmbProxy', DM_LISTADD, Data, PtrInt(Proxy));
+    end;
+    SendDlgMsg(pDlg, 'cmbProxy', DM_LISTSETITEMINDEX, ProxyIndex, 0);
+  end;
+  LoadProxy(pDlg);
+end;
+
+procedure SaveProxyList(pDlg: PtrUInt);
+var
+  Count: Integer;
+  Index: Integer;
+  Proxy: TFtpProxy;
+begin
+  with gStartupInfo do
+  begin
+    ProxyList.Clear;
+    UpdateProxy(pDlg);
+    Count:= SendDlgMsg(pDlg, 'cmbProxy', DM_LISTGETCOUNT, 0, 0);
+    for Index:= 1 to Count - 1 do
+    begin
+      Proxy:= TFtpProxy(SendDlgMsg(pDlg, 'cmbProxy', DM_LISTGETDATA, Index, 0));
+      ProxyList.AddObject(Proxy.ID, Proxy);
+    end;
+  end;
+  if ProxyIndex > 0 then
+    gConnection.Proxy:= TFtpProxy(ProxyList.Objects[ProxyIndex - 1]).ID
+  else
+    gConnection.Proxy:= EmptyStr;
+end;
+
+procedure FreeProxyList(pDlg: PtrUInt);
+var
+  Count: Integer;
+  Index: Integer;
+begin
+  with gStartupInfo do
+  begin
+    Count:= SendDlgMsg(pDlg, 'cmbProxy', DM_LISTGETCOUNT, 0, 0);
+    for Index:= 1 to Count - 1 do
+    begin
+      TFtpProxy(SendDlgMsg(pDlg, 'cmbProxy', DM_LISTGETDATA, Index, 0)).Free;
+    end;
+  end;
+end;
+
 function DlgProc (pDlg: PtrUInt; DlgItemName: PAnsiChar; Msg, wParam, lParam: PtrInt): PtrInt; dcpcall;
 var
   Data: PtrInt;
   Text: String;
+  Proxy: TFtpProxy;
 begin
   Result:= 0;
   with gStartupInfo do
@@ -116,6 +279,27 @@ begin
           SendDlgMsg(pDlg, 'chkAutoTLS', DM_SETCHECK, Data, 0);
           Data:= PtrInt(gConnection.OpenSSH);
           SendDlgMsg(pDlg, 'chkOpenSSH', DM_SETCHECK, Data, 0);
+          Data:= PtrInt(gConnection.OnlySCP);
+          SendDlgMsg(pDlg, 'chkOnlySCP', DM_SETCHECK, Data, 0);
+          Data:= PtrInt(gConnection.ShowHiddenItems);
+          SendDlgMsg(pDlg, 'chkShowHidden', DM_SETCHECK, Data, 0);
+          Data:= PtrInt(gConnection.KeepAliveTransfer);
+          SendDlgMsg(pDlg, 'chkKeepAliveTransfer', DM_SETCHECK, Data, 0);
+
+          Data:= PtrInt(PAnsiChar(gConnection.PublicKey));
+          SendDlgMsg(pDlg, 'fnePublicKey', DM_SETTEXT, Data, 0);
+          Data:= PtrInt(PAnsiChar(gConnection.PrivateKey));
+          SendDlgMsg(pDlg, 'fnePrivateKey', DM_SETTEXT, Data, 0);
+
+          if SameText(gConnection.ConnectionName, cQuickConnection) then
+          begin
+            SendDlgMsg(pDlg, 'edtName', DM_ENABLE, 0, 0);
+            SendDlgMsg(pDlg, 'chkMasterPassword', DM_SHOWITEM, 0, 0);
+          end;
+
+          EnableControls(pDlg);
+
+          LoadProxyList(pDlg);
         end;
       DN_CHANGE:
         begin
@@ -123,8 +307,7 @@ begin
           begin
             Data:= SendDlgMsg(pDlg, 'chkMasterPassword', DM_GETCHECK, 0, 0);
             gConnection.MasterPassword:= Boolean(Data);
-            if not gConnection.MasterPassword then
-              DeletePassword(gConnection.ConnectionName);
+            gConnection.PasswordChanged:= True;
           end
         else if DlgItemName = 'chkAutoTLS' then
           begin
@@ -132,6 +315,7 @@ begin
             gConnection.AutoTLS:= Boolean(Data);
             if gConnection.AutoTLS then
             begin
+              gConnection.OpenSSH:= False;
               if not InitSSLInterface then
               begin
                 ShowWarningSSL;
@@ -141,6 +325,7 @@ begin
               end;
               SendDlgMsg(pDlg, 'chkOpenSSH', DM_SETCHECK, 0, 0);
             end;
+            EnableControls(pDlg);
           end
         else if DlgItemName = 'chkOpenSSH' then
           begin
@@ -157,6 +342,14 @@ begin
                end;
               SendDlgMsg(pDlg, 'chkAutoTLS', DM_SETCHECK, 0, 0);
             end;
+            EnableControls(pDlg);
+          end
+        else if DlgItemName = 'cmbProxy' then
+          begin
+            UpdateProxy(pDlg);
+            ProxyIndex:= SendDlgMsg(pDlg, 'cmbProxy', DM_LISTGETITEMINDEX, 0, 0);
+            // Load current proxy settings
+            LoadProxy(pDlg);
           end;
         end;
       DN_CLICK:
@@ -171,17 +364,35 @@ begin
           end
         else if DlgItemName = 'btnChangePassword' then
           begin
-            Text:= ReadPassword(gConnection.ConnectionName);
-            if Text <> EmptyStr then
-              begin
-                Data:= PtrInt(PAnsiChar(Text));
-                SendDlgMsg(pDlg, 'edtPassword', DM_SETTEXT, Data, 0);
-                SendDlgMsg(pDlg, 'edtPassword', DM_SHOWITEM, 1, 0);
-                SendDlgMsg(pDlg, 'btnChangePassword', DM_SHOWITEM, 0, 0);
-                SendDlgMsg(pDlg, 'chkMasterPassword', DM_ENABLE, 1, 0);
-                gConnection.PasswordChanged:= True;
-              end;
+            if ReadPassword(gConnection.ConnectionName, Text) then
+            begin
+              Data:= PtrInt(PAnsiChar(Text));
+              SendDlgMsg(pDlg, 'edtPassword', DM_SETTEXT, Data, 0);
+              SendDlgMsg(pDlg, 'edtPassword', DM_SHOWITEM, 1, 0);
+              SendDlgMsg(pDlg, 'btnChangePassword', DM_SHOWITEM, 0, 0);
+              SendDlgMsg(pDlg, 'chkMasterPassword', DM_ENABLE, 1, 0);
+              gConnection.PasswordChanged:= True;
+            end;
           end
+        else if DlgItemName = 'btnAdd' then
+        begin
+          UpdateProxy(pDlg);
+          Proxy:= TFtpProxy.Create;
+          Proxy.ID:= CreateProxyID;
+          Data:= PtrInt(PAnsiChar(Proxy.ID));
+          ProxyIndex:= SendDlgMsg(pDlg, 'cmbProxy', DM_LISTADD, Data, PtrInt(Proxy));
+          SendDlgMsg(pDlg, 'cmbProxy', DM_LISTSETITEMINDEX, ProxyIndex, 0);
+          LoadProxy(pDlg);
+        end
+        else if DlgItemName = 'btnDelete' then
+        begin
+          Data:= SendDlgMsg(pDlg, 'cmbProxy', DM_LISTGETITEMINDEX, 0, 0);
+          TFtpProxy(SendDlgMsg(pDlg, 'cmbProxy', DM_LISTGETDATA, Data, 0)).Free;
+          SendDlgMsg(pDlg, 'cmbProxy', DM_LISTDELETE, Data, 0);
+          ProxyIndex:= 0;
+          SendDlgMsg(pDlg, 'cmbProxy', DM_LISTSETITEMINDEX, 0, 0);
+          LoadProxy(pDlg);
+        end
         else if DlgItemName = 'btnOK' then
           begin
             Data:= SendDlgMsg(pDlg, 'cmbEncoding', DM_GETTEXT, 0, 0);
@@ -219,15 +430,31 @@ begin
             gConnection.PassiveMode:= Boolean(Data);
             Data:= SendDlgMsg(pDlg, 'chkAutoTLS', DM_GETCHECK, 0, 0);
             gConnection.AutoTLS:= Boolean(Data);
+            Data:= SendDlgMsg(pDlg, 'chkOnlySCP', DM_GETCHECK, 0, 0);
+            gConnection.OnlySCP:= Boolean(Data);
+            Data:= SendDlgMsg(pDlg, 'chkShowHidden', DM_GETCHECK, 0, 0);
+            gConnection.ShowHiddenItems:= Boolean(Data);
+            Data:= SendDlgMsg(pDlg, 'chkKeepAliveTransfer', DM_GETCHECK, 0, 0);
+            gConnection.KeepAliveTransfer:= Boolean(Data);
+
+            Data:= SendDlgMsg(pDlg, 'fnePublicKey', DM_GETTEXT, 0, 0);
+            gConnection.PublicKey:= PAnsiChar(Data);
+            Data:= SendDlgMsg(pDlg, 'fnePrivateKey', DM_GETTEXT, 0, 0);
+            gConnection.PrivateKey:= PAnsiChar(Data);
+
             if gConnection.FullSSL and (InitSSLInterface = False) then
             begin;
               ShowWarningSSL;
             end;
+
+            SaveProxyList(pDlg);
+
             // close dialog
             SendDlgMsg(pDlg, DlgItemName, DM_CLOSE, 1, 0);
           end
         else if DlgItemName = 'btnCancel' then
           begin
+            FreeProxyList(pDlg);
             // close dialog
             SendDlgMsg(pDlg, DlgItemName, DM_CLOSE, 2, 0);
           end;
@@ -235,7 +462,7 @@ begin
   end; // with
 end;
 
-function ShowFtpConfDlg: Boolean;
+function ShowFtpConfDlg(Connection: TConnection): Boolean;
 var
   ResHandle: TFPResourceHandle = 0;
   ResGlobal: TFPResourceHGLOBAL = 0;
@@ -255,6 +482,7 @@ begin
 
         with gStartupInfo do
         begin
+          gConnection := Connection;
           Result := DialogBoxLRS(ResData, ResSize, @DlgProc);
         end;
       end;

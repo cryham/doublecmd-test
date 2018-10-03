@@ -32,6 +32,8 @@ type
   TDrawGridEx = class(TDrawGrid)
   private
     FMouseDownY: Integer;
+    FLastMouseMoveTime: QWord;
+    FLastMouseScrollTime: QWord;
     ColumnsView: TColumnsFileView;
 
     function GetGridHorzLine: Boolean;
@@ -40,6 +42,7 @@ type
     procedure SetGridVertLine(const AValue: Boolean);
 
   protected
+    procedure DoMouseMoveScroll(X, Y: Integer);
     {$IF lcl_fullversion < 1080003}
     function SelectCell(aCol, aRow: Integer): Boolean; override;
     {$ENDIF}
@@ -47,6 +50,8 @@ type
     procedure MouseDown(Button: TMouseButton; Shift: TShiftState; X,Y: Integer); override;
     procedure MouseMove(Shift: TShiftState; X, Y: Integer); override;
     procedure MouseUp(Button: TMouseButton; Shift:TShiftState; X,Y:Integer); override;
+    procedure DragOver(Source: TObject; X,Y: Integer; State: TDragState;
+                       var Accept: Boolean); override;
 
     procedure InitializeWnd; override;
     procedure FinalizeWnd; override;
@@ -159,11 +164,12 @@ type
     function GetActiveFileIndex: PtrInt; override;
     function GetFileIndexFromCursor(X, Y: Integer; out AtFileList: Boolean): PtrInt; override;
     function GetFileRect(FileIndex: PtrInt): TRect; override;
+    function GetIconRect(FileIndex: PtrInt): TRect; override;
     function GetVisibleFilesIndexes: TRange; override;
     procedure RedrawFile(FileIndex: PtrInt); override;
     procedure RedrawFile(DisplayFile: TDisplayFile); override;
     procedure RedrawFiles; override;
-    procedure SetActiveFile(FileIndex: PtrInt; ScrollTo: Boolean); override;
+    procedure SetActiveFile(FileIndex: PtrInt; ScrollTo: Boolean; aLastTopRowIndex: PtrInt = -1); override;
     procedure SetSorting(const NewSortings: TFileSortings); override;
     procedure ShowRenameFileEdit(aFile: TFile); override;
     procedure UpdateRenameFileEditPosition; override;
@@ -180,6 +186,7 @@ type
 
     constructor Create(AOwner: TWinControl; AFileSource: IFileSource; APath: String; AFlags: TFileViewFlags = []); override;
     constructor Create(AOwner: TWinControl; AFileView: TFileView; AFlags: TFileViewFlags = []); override;
+    constructor Create(AOwner: TWinControl; AFileView: TFileView; AColumnSet: String; AFlags: TFileViewFlags = []); virtual;
     constructor Create(AOwner: TWinControl; AConfig: TXmlConfig; ANode: TXmlNode; AFlags: TFileViewFlags = []); override;
 
     destructor Destroy; override;
@@ -193,6 +200,7 @@ type
     procedure SaveConfiguration(AConfig: TXmlConfig; ANode: TXmlNode; ASaveHistory:boolean); override;
 
     procedure UpdateColumnsView;
+    procedure SetColumnSet(const AName: String);
     procedure SetGridFunctionDim(ExternalDimFunction:TFunctionDime);
 
     property OnColumnResized: TColumnResized read FOnColumnResized write FOnColumnResized;
@@ -213,6 +221,9 @@ uses
   uFormCommands,
   uFileViewNotebook,
   fOptionsCustomColumns;
+
+const
+  CELL_PADDING = 2;
 
 type
   TEachViewCallbackReason = (evcrUpdateColumns);
@@ -410,11 +421,12 @@ begin
 {$IF lcl_fullversion >= 093100}
   dgPanel.Options := dgPanel.Options - [goDontScrollPartCell];
 {$ENDIF}
-  DoFileIndexChanged(aRow - dgPanel.FixedRows);
+  DoFileIndexChanged(aRow - dgPanel.FixedRows, dgPanel.TopRow);
 end;
 
 procedure TColumnsFileView.dgPanelTopLeftChanged(Sender: TObject);
 begin
+  if not FUpdatingActiveFile then FLastTopRowIndex:= dgPanel.TopRow;
   Notify([fvnVisibleFilePropertiesChanged]);
 end;
 
@@ -594,6 +606,17 @@ begin
   Result := dgPanel.CellRect(0, FileIndex + dgPanel.FixedRows);
 end;
 
+function TColumnsFileView.GetIconRect(FileIndex: PtrInt): TRect;
+begin
+  FileIndex:= FileIndex + dgPanel.FixedRows;
+  Result := dgPanel.CellRect(0, FileIndex);
+
+  Result.Top:= Result.Top + (dgPanel.RowHeights[FileIndex] - gIconsSize) div 2;
+  Result.Left:= Result.Left + CELL_PADDING;
+  Result.Right:= Result.Left + gIconsSize;
+  Result.Bottom:= Result.Bottom + gIconsSize;
+end;
+
 procedure TColumnsFileView.SetRowCount(Count: Integer);
 begin
   FUpdatingActiveFile := True;
@@ -662,7 +685,7 @@ begin
   begin
     AVisibleRows := GetFullVisibleRows;
     if iRow < AVisibleRows.First then
-      TopRow := AVisibleRows.First;
+     TopRow := iRow;
     if iRow > AVisibleRows.Last then
       TopRow := iRow - (AVisibleRows.Last - AVisibleRows.First);
   end;
@@ -674,12 +697,13 @@ begin
     MakeVisible(dgPanel.Row);
 end;
 
-procedure TColumnsFileView.SetActiveFile(FileIndex: PtrInt; ScrollTo: Boolean);
+procedure TColumnsFileView.SetActiveFile(FileIndex: PtrInt; ScrollTo: Boolean; aLastTopRowIndex: PtrInt = -1);
 begin
   if not ScrollTo then
     dgPanel.SetColRow(dgPanel.Col, FileIndex + dgPanel.FixedRows)
   else begin
     dgPanel.Row := FileIndex + dgPanel.FixedRows;
+    if (aLastTopRowIndex <> -1) then dgPanel.TopRow := aLastTopRowIndex;
     MakeVisible(dgPanel.Row);
   end;
 end;
@@ -728,6 +752,16 @@ begin
   end;
 end;
 
+procedure TColumnsFileView.SetColumnSet(const AName: String);
+begin
+  if ColSet.Items.IndexOf(AName) >= 0 then
+  begin
+    ActiveColm:= AName;
+    UpdateColumnsView;
+    RedrawFiles;
+  end;
+end;
+
 procedure TColumnsFileView.ColumnsMenuClick(Sender: TObject);
 begin
   Case (Sender as TMenuItem).Tag of
@@ -753,6 +787,14 @@ end;
 
 constructor TColumnsFileView.Create(AOwner: TWinControl; AFileView: TFileView; AFlags: TFileViewFlags = []);
 begin
+  inherited Create(AOwner, AFileView, AFlags);
+end;
+
+constructor TColumnsFileView.Create(AOwner: TWinControl; AFileView: TFileView;
+  AColumnSet: String; AFlags: TFileViewFlags);
+begin
+  if ColSet.Items.IndexOf(AColumnSet) >= 0 then
+    ActiveColm := AColumnSet;
   inherited Create(AOwner, AFileView, AFlags);
 end;
 
@@ -870,10 +912,10 @@ begin
   SetFilesDisplayItems;
   RedrawFiles;
 
-  if SetActiveFileNow(RequestedActiveFile) then
+  if SetActiveFileNow(RequestedActiveFile, FLastTopRowIndex) then
     RequestedActiveFile := ''
   // Requested file was not found, restore position to last active file.
-  else if not SetActiveFileNow(LastActiveFile) then
+  else if not SetActiveFileNow(LastActiveFile, FLastTopRowIndex) then
   // Make sure at least that the previously active file is still visible after displaying file list.
     MakeActiveVisible;
 
@@ -1183,6 +1225,8 @@ procedure TDrawGridEx.UpdateView;
     NewFont     := TFont.Create;
     Canvas.Font := NewFont;
 
+    Canvas.Font.PixelsPerInch := NewFont.PixelsPerInch;
+
     // Search columns settings for the biggest font (in height).
     for i := 0 to ColumnsSet.Count - 1 do
     begin
@@ -1298,9 +1342,6 @@ end;
 
 procedure TDrawGridEx.DrawCell(aCol, aRow: Integer; aRect: TRect;
               aState: TGridDrawState);
-const
-  CELL_PADDING = 2;
-
 var
   //shared variables
   s:   string;
@@ -1345,12 +1386,19 @@ var
       // center icon vertically
       Y:= aRect.Top + (RowHeights[ARow] - gIconsSize) div 2;
 
-      // Draw icon for a file
-      PixMapManager.DrawBitmap(IconID,
-                               Canvas,
-                               aRect.Left + CELL_PADDING,
-                               Y
-                               );
+      if gShowHiddenDimmed and AFile.FSFile.IsHidden then
+        PixMapManager.DrawBitmapAlpha(IconID,
+                                      Canvas,
+                                      aRect.Left + CELL_PADDING,
+                                      Y
+                                     )
+      else
+        // Draw icon for a file
+        PixMapManager.DrawBitmap(IconID,
+                                 Canvas,
+                                 aRect.Left + CELL_PADDING,
+                                 Y
+                                );
 
       // Draw overlay icon for a file if needed
       if gIconOverlays then
@@ -1896,8 +1944,17 @@ begin
     end;
 end;
 
+procedure TDrawGridEx.DragOver(Source: TObject; X, Y: Integer; State: TDragState; var Accept: Boolean);
+begin
+  inherited DragOver(Source, X, Y, State, Accept);
+  DoMouseMoveScroll(X, Y);
+end;
+
 procedure TDrawGridEx.MouseDown(Button: TMouseButton; Shift: TShiftState; X,Y: Integer);
 begin
+  FLastMouseMoveTime := 0;
+  FLastMouseScrollTime := 0;
+
   if ColumnsView.IsLoadingFileList then Exit;
 {$IFDEF LCLGTK2}
   // Workaround for two doubleclicks being sent on GTK.
@@ -1913,28 +1970,9 @@ begin
 end;
 
 procedure TDrawGridEx.MouseMove(Shift: TShiftState; X, Y: Integer);
-  procedure Scroll(ScrollCode: SmallInt);
-  var
-    Msg: TLMVScroll;
-  begin
-    Msg.Msg := LM_VSCROLL;
-    Msg.ScrollCode := ScrollCode;
-    Msg.SmallPos := 1; // How many lines scroll
-    Msg.ScrollBar := Handle;
-    Dispatch(Msg);
-  end;
 begin
   inherited MouseMove(Shift, X, Y);
-  if DragManager.IsDragging or ColumnsView.IsMouseSelecting then
-  begin
-    if Y < DefaultRowHeight then
-      Scroll(SB_LINEUP)
-    else if (Y > ClientHeight - DefaultRowHeight) and (Y - 1 > FMouseDownY) then
-    begin
-      FMouseDownY := -1;
-      Scroll(SB_LINEDOWN);
-    end;
-  end;
+  if ColumnsView.IsMouseSelecting then DoMouseMoveScroll(X, Y);
 end;
 
 function TDrawGridEx.MouseOnGrid(X, Y: LongInt): Boolean;
@@ -2031,6 +2069,45 @@ function TDrawGridEx.IsRowVisible(aRow: Integer): Boolean;
 begin
   with GCache.FullVisibleGrid do
     Result:= (Top<=aRow)and(aRow<=Bottom);
+end;
+
+procedure TDrawGridEx.DoMouseMoveScroll(X, Y: Integer);
+
+  procedure Scroll(ScrollCode: SmallInt);
+  var
+    Msg: TLMVScroll;
+  begin
+    Msg.Msg := LM_VSCROLL;
+    Msg.ScrollCode := ScrollCode;
+    Msg.SmallPos := 1; // How many lines scroll
+    Msg.ScrollBar := Handle;
+    Dispatch(Msg);
+  end;
+
+var
+  TickCount: QWord;
+  AEvent: SmallInt;
+begin
+  TickCount := GetTickCount64;
+
+  if Y < DefaultRowHeight then
+    AEvent := SB_LINEUP
+  else if (Y > ClientHeight - DefaultRowHeight) and (Y - 1 > FMouseDownY) then
+    AEvent := SB_LINEDOWN
+  else begin
+    Exit;
+  end;
+
+  if (FLastMouseMoveTime = 0) then
+    FLastMouseMoveTime := TickCount
+  else if (FLastMouseScrollTime = 0) then
+    FLastMouseScrollTime := TickCount
+  else if (TickCount - FLastMouseMoveTime > 200) and (TickCount - FLastMouseScrollTime > 50) then
+  begin
+    Scroll(AEvent);
+    FLastMouseScrollTime := GetTickCount64;
+    if (AEvent = SB_LINEDOWN) then FMouseDownY := -1;
+  end;
 end;
 
 procedure TDrawGridEx.KeyDown(var Key: Word; Shift: TShiftState);

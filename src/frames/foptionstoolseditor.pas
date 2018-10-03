@@ -28,16 +28,24 @@ interface
 
 uses
   Classes, SysUtils, StdCtrls, ExtCtrls, Dialogs,
-  Buttons, fOptionsFrame, fOptionsToolBase;
+  Buttons, EditBtn, Menus, fOptionsFrame, fOptionsToolBase;
 
 type
 
   { TfrmOptionsEditor }
 
   TfrmOptionsEditor = class(TfrmOptionsToolBase)
-    chkShowSpecialChars: TCheckBox;
     gbInternalEditor: TGroupBox;
+    pnlBooleanOptions: TPanel;
+    chkAutoIndent: TCheckBox;
+    chkTrimTrailingSpaces: TCheckBox;
     chkScrollPastEndLine: TCheckBox;
+    chkShowSpecialChars: TCheckBox;
+    chkTabsToSpaces: TCheckBox;
+    chkTabIndent: TCheckBox;
+    lblTabWidth: TLabel;
+    edTabWidth: TEdit;
+    chkSmartTabs: TCheckBox;
   protected
     procedure Init; override;
     procedure Load; override;
@@ -53,7 +61,7 @@ implementation
 {$R *.lfm}
 
 uses
-  SynEdit, uGlobs, uLng;
+  SynEdit, uGlobs, uLng, fEditor;
 
 { TfrmOptionsEditor }
 
@@ -66,8 +74,14 @@ end;
 procedure TfrmOptionsEditor.Load;
 begin
   inherited Load;
-  chkScrollPastEndLine.Checked:= eoScrollPastEoL in gEditorSynEditOptions;
-  chkShowSpecialChars.Checked:= eoShowSpecialChars in gEditorSynEditOptions;
+  chkScrollPastEndLine.Checked := eoScrollPastEoL in gEditorSynEditOptions;
+  chkShowSpecialChars.Checked := eoShowSpecialChars in gEditorSynEditOptions;
+  chkTrimTrailingSpaces.Checked := eoTrimTrailingSpaces in gEditorSynEditOptions;
+  chkTabsToSpaces.Checked := eoTabsToSpaces in gEditorSynEditOptions;
+  chkAutoIndent.Checked := eoAutoIndent in gEditorSynEditOptions;
+  chkTabIndent.Checked := eoTabIndent in gEditorSynEditOptions;
+  chkSmartTabs.Checked := eoSmartTabs in gEditorSynEditOptions;
+  edTabWidth.Text := IntToStr(gEditorSynEditTabWidth);
 end;
 
 function TfrmOptionsEditor.Save: TOptionsEditorSaveFlags;
@@ -84,6 +98,15 @@ begin
   Result:= inherited Save;
   UpdateOptionFromBool(chkScrollPastEndLine.Checked, eoScrollPastEoL);
   UpdateOptionFromBool(chkShowSpecialChars.Checked, eoShowSpecialChars);
+  UpdateOptionFromBool(chkTrimTrailingSpaces.Checked, eoTrimTrailingSpaces);
+  UpdateOptionFromBool(chkTabsToSpaces.Checked, eoTabsToSpaces);
+  UpdateOptionFromBool(chkAutoIndent.Checked, eoAutoIndent);
+  UpdateOptionFromBool(chkTabIndent.Checked, eoTabIndent);
+  UpdateOptionFromBool(chkSmartTabs.Checked, eoSmartTabs);
+  edTabWidth.Text := IntToStr(StrToIntDef(edTabWidth.Text,8));
+  gEditorSynEditTabWidth := StrToIntDef(edTabWidth.Text,8);
+  if LastEditorUsedForConfiguration<>nil then
+    LastEditorUsedForConfiguration.LoadGlobalOptions;
 end;
 
 constructor TfrmOptionsEditor.Create(TheOwner: TComponent);

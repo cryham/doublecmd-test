@@ -3,7 +3,7 @@
     -------------------------------------------------------------------------
     Creates Total Commander fake window (some plugins don't work without it)
 
-    Copyright (C) 2009-2017 Alexander Koblov (alexx2000@mail.ru)
+    Copyright (C) 2009-2018 Alexander Koblov (alexx2000@mail.ru)
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -211,7 +211,7 @@ const
     (TCCommand: 'cm_ThumbnailsConfig';          TCIcon: 34; DCCommand: '';                          DCParameters: ''          ), //Conf: Thumbnails
     (TCCommand: 'cm_LogConfig';                 TCIcon: 34; DCCommand: '';                          DCParameters: ''          ), //Conf: Log file
     (TCCommand: 'cm_IgnoreConfig';              TCIcon: 34; DCCommand: '';                          DCParameters: ''          ), //Conf: Ignore list
-    (TCCommand: 'cm_PackerConfig';              TCIcon: 34; DCCommand: '';                          DCParameters: ''          ), //Conf: Packer
+    (TCCommand: 'cm_PackerConfig';              TCIcon: 34; DCCommand: 'cm_ConfigArchivers';        DCParameters: ''          ), //Conf: Packer
     (TCCommand: 'cm_ZipPackerConfig';           TCIcon: 34; DCCommand: '';                          DCParameters: ''          ), //Conf: ZIP packer
     (TCCommand: 'cm_Confirmation';              TCIcon: 34; DCCommand: '';                          DCParameters: ''          ), //Conf: Misc, Confirmation
     (TCCommand: 'cm_ConfigSavePos';             TCIcon: -1; DCCommand: '';                          DCParameters: ''          ), //Conf: Save position
@@ -433,46 +433,46 @@ const
     (TCCommand: 'cm_ToggleLockDcaCurrentTab';   TCIcon: -1; DCCommand: '';                          DCParameters: ''          ), //Same but with dir changes allowed
     (TCCommand: 'cm_ExchangeWithTabs';          TCIcon: 37; DCCommand: '';                          DCParameters: ''          ), //Swap all Tabs
     (TCCommand: 'cm_GoToLockedDir';             TCIcon: -1; DCCommand: '';                          DCParameters: ''          ), //Go to the base dir of locked tab
-    (TCCommand: 'cm_SrcActivateTab1';           TCIcon: -1; DCCommand: '';                          DCParameters: ''          ), //Activate first tab
-    (TCCommand: 'cm_SrcActivateTab2';           TCIcon: -1; DCCommand: '';                          DCParameters: ''          ), //Activate second tab
-    (TCCommand: 'cm_SrcActivateTab3';           TCIcon: -1; DCCommand: '';                          DCParameters: ''          ), //(Source window)
-    (TCCommand: 'cm_SrcActivateTab4';           TCIcon: -1; DCCommand: '';                          DCParameters: ''          ), //etc.
-    (TCCommand: 'cm_SrcActivateTab5';           TCIcon: -1; DCCommand: '';                          DCParameters: ''          ),
-    (TCCommand: 'cm_SrcActivateTab6';           TCIcon: -1; DCCommand: '';                          DCParameters: ''          ),
-    (TCCommand: 'cm_SrcActivateTab7';           TCIcon: -1; DCCommand: '';                          DCParameters: ''          ),
-    (TCCommand: 'cm_SrcActivateTab8';           TCIcon: -1; DCCommand: '';                          DCParameters: ''          ),
-    (TCCommand: 'cm_SrcActivateTab9';           TCIcon: -1; DCCommand: '';                          DCParameters: ''          ),
-    (TCCommand: 'cm_SrcActivateTab10';          TCIcon: -1; DCCommand: '';                          DCParameters: ''          ), //(up to 99 items)
-    (TCCommand: 'cm_TrgActivateTab1';           TCIcon: -1; DCCommand: '';                          DCParameters: ''          ), //Activate first tab
-    (TCCommand: 'cm_TrgActivateTab2';           TCIcon: -1; DCCommand: '';                          DCParameters: ''          ), //Activate second tab
-    (TCCommand: 'cm_TrgActivateTab3';           TCIcon: -1; DCCommand: '';                          DCParameters: ''          ), //(Target window)
-    (TCCommand: 'cm_TrgActivateTab4';           TCIcon: -1; DCCommand: '';                          DCParameters: ''          ), //etc.
-    (TCCommand: 'cm_TrgActivateTab5';           TCIcon: -1; DCCommand: '';                          DCParameters: ''          ),
-    (TCCommand: 'cm_TrgActivateTab6';           TCIcon: -1; DCCommand: '';                          DCParameters: ''          ),
-    (TCCommand: 'cm_TrgActivateTab7';           TCIcon: -1; DCCommand: '';                          DCParameters: ''          ),
-    (TCCommand: 'cm_TrgActivateTab8';           TCIcon: -1; DCCommand: '';                          DCParameters: ''          ),
-    (TCCommand: 'cm_TrgActivateTab9';           TCIcon: -1; DCCommand: '';                          DCParameters: ''          ),
-    (TCCommand: 'cm_TrgActivateTab10';          TCIcon: -1; DCCommand: '';                          DCParameters: ''          ),
-    (TCCommand: 'cm_LeftActivateTab1';          TCIcon: -1; DCCommand: '';                          DCParameters: ''          ), //Activate first tab
-    (TCCommand: 'cm_LeftActivateTab2';          TCIcon: -1; DCCommand: '';                          DCParameters: ''          ), //Activate second tab
-    (TCCommand: 'cm_LeftActivateTab3';          TCIcon: -1; DCCommand: '';                          DCParameters: ''          ), //(Left window)
-    (TCCommand: 'cm_LeftActivateTab4';          TCIcon: -1; DCCommand: '';                          DCParameters: ''          ), //etc.
-    (TCCommand: 'cm_LeftActivateTab5';          TCIcon: -1; DCCommand: '';                          DCParameters: ''          ),
-    (TCCommand: 'cm_LeftActivateTab6';          TCIcon: -1; DCCommand: '';                          DCParameters: ''          ),
-    (TCCommand: 'cm_LeftActivateTab7';          TCIcon: -1; DCCommand: '';                          DCParameters: ''          ),
-    (TCCommand: 'cm_LeftActivateTab8';          TCIcon: -1; DCCommand: '';                          DCParameters: ''          ),
-    (TCCommand: 'cm_LeftActivateTab9';          TCIcon: -1; DCCommand: '';                          DCParameters: ''          ),
-    (TCCommand: 'cm_LeftActivateTab10';         TCIcon: -1; DCCommand: '';                          DCParameters: ''          ),
-    (TCCommand: 'cm_RightActivateTab1';         TCIcon: -1; DCCommand: '';                          DCParameters: ''          ), //Activate first tab
-    (TCCommand: 'cm_RightActivateTab2';         TCIcon: -1; DCCommand: '';                          DCParameters: ''          ), //Activate second tab
-    (TCCommand: 'cm_RightActivateTab3';         TCIcon: -1; DCCommand: '';                          DCParameters: ''          ), //(Right window)
-    (TCCommand: 'cm_RightActivateTab4';         TCIcon: -1; DCCommand: '';                          DCParameters: ''          ), //etc.
-    (TCCommand: 'cm_RightActivateTab5';         TCIcon: -1; DCCommand: '';                          DCParameters: ''          ),
-    (TCCommand: 'cm_RightActivateTab6';         TCIcon: -1; DCCommand: '';                          DCParameters: ''          ),
-    (TCCommand: 'cm_RightActivateTab7';         TCIcon: -1; DCCommand: '';                          DCParameters: ''          ),
-    (TCCommand: 'cm_RightActivateTab8';         TCIcon: -1; DCCommand: '';                          DCParameters: ''          ),
-    (TCCommand: 'cm_RightActivateTab9';         TCIcon: -1; DCCommand: '';                          DCParameters: ''          ),
-    (TCCommand: 'cm_RightActivateTab10';        TCIcon: -1; DCCommand: '';                          DCParameters: ''          ),
+    (TCCommand: 'cm_SrcActivateTab1';           TCIcon: -1; DCCommand: 'cm_ActivateTabByIndex';     DCParameters: 'index=1'   ), //Activate first tab
+    (TCCommand: 'cm_SrcActivateTab2';           TCIcon: -1; DCCommand: 'cm_ActivateTabByIndex';     DCParameters: 'index=2'   ), //Activate second tab
+    (TCCommand: 'cm_SrcActivateTab3';           TCIcon: -1; DCCommand: 'cm_ActivateTabByIndex';     DCParameters: 'index=3'   ), //(Source window)
+    (TCCommand: 'cm_SrcActivateTab4';           TCIcon: -1; DCCommand: 'cm_ActivateTabByIndex';     DCParameters: 'index=4'   ), //etc.
+    (TCCommand: 'cm_SrcActivateTab5';           TCIcon: -1; DCCommand: 'cm_ActivateTabByIndex';     DCParameters: 'index=5'   ),
+    (TCCommand: 'cm_SrcActivateTab6';           TCIcon: -1; DCCommand: 'cm_ActivateTabByIndex';     DCParameters: 'index=6'   ),
+    (TCCommand: 'cm_SrcActivateTab7';           TCIcon: -1; DCCommand: 'cm_ActivateTabByIndex';     DCParameters: 'index=7'   ),
+    (TCCommand: 'cm_SrcActivateTab8';           TCIcon: -1; DCCommand: 'cm_ActivateTabByIndex';     DCParameters: 'index=8'   ),
+    (TCCommand: 'cm_SrcActivateTab9';           TCIcon: -1; DCCommand: 'cm_ActivateTabByIndex';     DCParameters: 'index=9'   ),
+    (TCCommand: 'cm_SrcActivateTab10';          TCIcon: -1; DCCommand: 'cm_ActivateTabByIndex';     DCParameters: 'index=10'  ), //(up to 99 items)
+    (TCCommand: 'cm_TrgActivateTab1';           TCIcon: -1; DCCommand: 'cm_ActivateTabByIndex';     DCParameters: 'side=inactive;index=1'  ), //Activate first tab
+    (TCCommand: 'cm_TrgActivateTab2';           TCIcon: -1; DCCommand: 'cm_ActivateTabByIndex';     DCParameters: 'side=inactive;index=2'  ), //Activate second tab
+    (TCCommand: 'cm_TrgActivateTab3';           TCIcon: -1; DCCommand: 'cm_ActivateTabByIndex';     DCParameters: 'side=inactive;index=3'  ), //(Target window)
+    (TCCommand: 'cm_TrgActivateTab4';           TCIcon: -1; DCCommand: 'cm_ActivateTabByIndex';     DCParameters: 'side=inactive;index=4'  ), //etc.
+    (TCCommand: 'cm_TrgActivateTab5';           TCIcon: -1; DCCommand: 'cm_ActivateTabByIndex';     DCParameters: 'side=inactive;index=5'  ),
+    (TCCommand: 'cm_TrgActivateTab6';           TCIcon: -1; DCCommand: 'cm_ActivateTabByIndex';     DCParameters: 'side=inactive;index=6'  ),
+    (TCCommand: 'cm_TrgActivateTab7';           TCIcon: -1; DCCommand: 'cm_ActivateTabByIndex';     DCParameters: 'side=inactive;index=7'  ),
+    (TCCommand: 'cm_TrgActivateTab8';           TCIcon: -1; DCCommand: 'cm_ActivateTabByIndex';     DCParameters: 'side=inactive;index=8'  ),
+    (TCCommand: 'cm_TrgActivateTab9';           TCIcon: -1; DCCommand: 'cm_ActivateTabByIndex';     DCParameters: 'side=inactive;index=9'  ),
+    (TCCommand: 'cm_TrgActivateTab10';          TCIcon: -1; DCCommand: 'cm_ActivateTabByIndex';     DCParameters: 'side=inactive;index=10' ),
+    (TCCommand: 'cm_LeftActivateTab1';          TCIcon: -1; DCCommand: 'cm_ActivateTabByIndex';     DCParameters: 'side=left;index=1'      ), //Activate first tab
+    (TCCommand: 'cm_LeftActivateTab2';          TCIcon: -1; DCCommand: 'cm_ActivateTabByIndex';     DCParameters: 'side=left;index=2'      ), //Activate second tab
+    (TCCommand: 'cm_LeftActivateTab3';          TCIcon: -1; DCCommand: 'cm_ActivateTabByIndex';     DCParameters: 'side=left;index=3'      ), //(Left window)
+    (TCCommand: 'cm_LeftActivateTab4';          TCIcon: -1; DCCommand: 'cm_ActivateTabByIndex';     DCParameters: 'side=left;index=4'      ), //etc.
+    (TCCommand: 'cm_LeftActivateTab5';          TCIcon: -1; DCCommand: 'cm_ActivateTabByIndex';     DCParameters: 'side=left;index=5'      ),
+    (TCCommand: 'cm_LeftActivateTab6';          TCIcon: -1; DCCommand: 'cm_ActivateTabByIndex';     DCParameters: 'side=left;index=6'      ),
+    (TCCommand: 'cm_LeftActivateTab7';          TCIcon: -1; DCCommand: 'cm_ActivateTabByIndex';     DCParameters: 'side=left;index=7'      ),
+    (TCCommand: 'cm_LeftActivateTab8';          TCIcon: -1; DCCommand: 'cm_ActivateTabByIndex';     DCParameters: 'side=left;index=8'      ),
+    (TCCommand: 'cm_LeftActivateTab9';          TCIcon: -1; DCCommand: 'cm_ActivateTabByIndex';     DCParameters: 'side=left;index=9'      ),
+    (TCCommand: 'cm_LeftActivateTab10';         TCIcon: -1; DCCommand: 'cm_ActivateTabByIndex';     DCParameters: 'side=left;index=10'     ),
+    (TCCommand: 'cm_RightActivateTab1';         TCIcon: -1; DCCommand: 'cm_ActivateTabByIndex';     DCParameters: 'side=right;index=1'     ), //Activate first tab
+    (TCCommand: 'cm_RightActivateTab2';         TCIcon: -1; DCCommand: 'cm_ActivateTabByIndex';     DCParameters: 'side=right;index=2'     ), //Activate second tab
+    (TCCommand: 'cm_RightActivateTab3';         TCIcon: -1; DCCommand: 'cm_ActivateTabByIndex';     DCParameters: 'side=right;index=3'     ), //(Right window)
+    (TCCommand: 'cm_RightActivateTab4';         TCIcon: -1; DCCommand: 'cm_ActivateTabByIndex';     DCParameters: 'side=right;index=4'     ), //etc.
+    (TCCommand: 'cm_RightActivateTab5';         TCIcon: -1; DCCommand: 'cm_ActivateTabByIndex';     DCParameters: 'side=right;index=5'     ),
+    (TCCommand: 'cm_RightActivateTab6';         TCIcon: -1; DCCommand: 'cm_ActivateTabByIndex';     DCParameters: 'side=right;index=6'     ),
+    (TCCommand: 'cm_RightActivateTab7';         TCIcon: -1; DCCommand: 'cm_ActivateTabByIndex';     DCParameters: 'side=right;index=7'     ),
+    (TCCommand: 'cm_RightActivateTab8';         TCIcon: -1; DCCommand: 'cm_ActivateTabByIndex';     DCParameters: 'side=right;index=8'     ),
+    (TCCommand: 'cm_RightActivateTab9';         TCIcon: -1; DCCommand: 'cm_ActivateTabByIndex';     DCParameters: 'side=right;index=9'     ),
+    (TCCommand: 'cm_RightActivateTab10';        TCIcon: -1; DCCommand: 'cm_ActivateTabByIndex';     DCParameters: 'side=right;index=10'    ),
     (TCCommand: 'cm_SrcSortByCol1';             TCIcon: -1; DCCommand: '';                          DCParameters: ''          ), // Sort by first column
     (TCCommand: 'cm_SrcSortByCol2';             TCIcon: -1; DCCommand: '';                          DCParameters: ''          ), // Sort by second column
     (TCCommand: 'cm_SrcSortByCol3';             TCIcon: -1; DCCommand: '';                          DCParameters: ''          ), // (source window)

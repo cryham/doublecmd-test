@@ -5,7 +5,8 @@ unit uMultiArchiveUtil;
 interface
 
 uses
-  Classes, SysUtils, uMultiArc, un_process, uFile, uMultiArchiveParser;
+  Classes, SysUtils, DCConvertEncoding, uMultiArc, un_process, uFile,
+  uMultiArchiveParser;
 
 type
 
@@ -16,9 +17,11 @@ type
     FExProcess: TExProcess;
     FMultiArcItem: TMultiArcItem;
     FParser: TMultiArchiveParser;
+    FConvertEncoding: function (const Source: String): RawByteString;
   private
     FArchiveName: String;
     FStartParsing: boolean;
+    function PrepareCommand: String;
     procedure SetOnGetArchiveItem(AValue: TOnGetArchiveItem);
   protected
     procedure OnProcessExit;
@@ -50,10 +53,32 @@ function FormatArchiverCommand(const Archiver, sCmd, anArchiveName: String;
 implementation
 
 uses
-  LazUTF8, DCClassesUtf8, DCConvertEncoding, uDCUtils, DCOSUtils, uOSUtils,
+  LazUTF8, DCClassesUtf8, uDCUtils, DCOSUtils, uOSUtils,
   uDebug, uShowMsg, uLng, uMultiArchiveDynamicParser;
 
+function Utf8ToUtf8(const Source: String): RawByteString;
+begin
+  Result:= Source;
+end;
+
 { TOutputParser }
+
+function TOutputParser.PrepareCommand: String;
+var
+  Index: Integer;
+begin
+  Result:= FMultiArcItem.FList;
+  Index:= Pos('%O', Result);
+  FConvertEncoding:= @DCOSUtils.ConsoleToUTF8;
+  if (Index > 0) and (Index + 2 <= Length(Result)) then
+  begin
+    case (Result[Index + 2]) of
+      'A': FConvertEncoding:= CeSysToUtf8;
+      'U': FConvertEncoding:= @Utf8ToUtf8;
+    end;
+    Delete(Result, Index, 3);
+  end;
+end;
 
 procedure TOutputParser.SetOnGetArchiveItem(AValue: TOnGetArchiveItem);
 begin
@@ -67,6 +92,8 @@ end;
 
 procedure TOutputParser.OnReadLn(str: string);
 begin
+  str:= FConvertEncoding(str);
+
   if FMultiArcItem.FDebug then
     DCDebug(str);
 
@@ -145,8 +172,9 @@ var
 begin
   FStartParsing:= False;
   FreeAndNil(FExProcess);
+  sCommandLine:= PrepareCommand;
   sCommandLine:= FormatArchiverCommand(FMultiArcItem.FArchiver,
-                                       FMultiArcItem.FList, FArchiveName,
+                                       sCommandLine, FArchiveName,
                                        nil, '', '','', FPassword);
   if FMultiArcItem.FDebug then
     DCDebug(sCommandLine);
@@ -222,17 +250,12 @@ var
       Result := '"' + Result + '"';
     if (fmQuoteAny in state.FuncModifiers) then
       Result := '"' + Result + '"';
-    if (fmUTF8 in state.FuncModifiers) then
-      Exit;
-    if (fmAnsi in state.FuncModifiers) then
-      Result := CeUtf8ToSys(Result)
-    else
-      Result := UTF8ToConsole(Result);
   end;
 
   function BuildFileList(bShort: boolean): String;
   var
     I: integer;
+    FileName: String;
     FileList: TStringListEx;
   begin
     if not Assigned(aFiles) then Exit(EmptyStr);
@@ -243,9 +266,16 @@ var
       if aFiles[I].IsDirectory and (fmOnlyFiles in state.FuncModifiers) then
         Continue;
       if bShort then
-        FileList.Add(BuildName(mbFileNameToSysEnc(aFiles[I].FullPath)))
-      else
-        FileList.Add(BuildName(aFiles[I].FullPath));
+        FileName := BuildName(mbFileNameToSysEnc(aFiles[I].FullPath))
+      else begin
+        FileName := BuildName(aFiles[I].FullPath);
+      end;
+      if (fmAnsi in state.FuncModifiers) then
+        FileName := CeUtf8ToSys(FileName)
+      else if not (fmUTF8 in state.FuncModifiers) then begin
+        FileName := UTF8ToConsole(FileName);
+      end;
+      FileList.Add(FileName);
     end;
     try
       FileList.SaveToFile(Result);
@@ -279,7 +309,7 @@ var
       ftVolumeSize:
         Result:= sVolumeSize;
       ftPassword:
-        Result:= UTF8ToConsole(sPassword);
+        Result:= sPassword;
       ftCustomParams:
         Result:= sCustomParams;
       else

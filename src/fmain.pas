@@ -2,7 +2,7 @@
    Double Commander
    -------------------------------------------------------------------------
    Licence  : GNU GPL v 2.0
-   Copyright (C) 2006-2016 Alexander Koblov (Alexx2000@mail.ru)
+   Copyright (C) 2006-2018 Alexander Koblov (Alexx2000@mail.ru)
 
    Main Dialog window
 
@@ -106,6 +106,8 @@ type
     actConfigSaveSettings: TAction;
     actExecuteScript: TAction;
     actFocusSwap: TAction;
+    actConfigArchivers: TAction;
+    actConfigTooltips: TAction;
     actUnmarkCurrentNameExt: TAction;
     actMarkCurrentNameExt: TAction;
     actUnmarkCurrentName: TAction;
@@ -175,6 +177,7 @@ type
     actKeyboard: TAction;
     actPrevTab: TAction;
     actNextTab: TAction;
+    actActivateTabByIndex: TAction;
     actCloseAllTabs: TAction;
     actSetTabOptionNormal: TAction;
     actSetTabOptionPathLocked: TAction;
@@ -199,6 +202,7 @@ type
     actNewTab: TAction;
     actConfigToolbars: TAction;
     actDebugShowCommandParameters: TAction;
+    actOpenDriveByIndex: TAction;
     btnF10: TSpeedButton;
     btnF3: TSpeedButton;
     btnF4: TSpeedButton;
@@ -217,6 +221,7 @@ type
     lblRightDriveInfo: TLabel;
     lblLeftDriveInfo: TLabel;
     lblCommandPath: TLabel;
+    miConfigArchivers: TMenuItem;
     mnuConfigSaveSettings: TMenuItem;
     miLine55: TMenuItem;
     mnuConfigureFavoriteTabs: TMenuItem;
@@ -691,6 +696,7 @@ type
     NumberOfMoveButton, NumberOfNewMoveButton: integer;
     Draging : boolean;
     FUpdateDiskCount: Boolean;
+    FModalOperationResult: Boolean;
 
     procedure CheckCommandLine(ShiftEx: TShiftState; var Key: Word);
     function ExecuteCommandFromEdit(sCmd: String; bRunInTerm: Boolean): Boolean;
@@ -716,7 +722,6 @@ type
     procedure UpdateDriveToolbarSelection(DriveToolbar: TKAStoolBar; FileView: TFileView);
     procedure UpdateDriveButtonSelection(DriveButton: TSpeedButton; FileView: TFileView);
     procedure UpdateSelectedDrive(ANoteBook: TFileViewNotebook);
-    procedure SetPanelDrive(aPanel: TFilePanelSelect; Drive: PDrive; ActivateIfNeeded: Boolean);
     procedure OnDriveWatcherEvent(EventType: TDriveWatcherEvent; const ADrive: PDrive);
     procedure AppActivate(Sender: TObject);
     procedure AppDeActivate(Sender: TObject);
@@ -766,6 +771,7 @@ type
     procedure ShowFileViewHistory(const Params: array of string);
     procedure ShowFileViewHistory(const Params: array of string; FromFileSourceIndex, FromPathIndex, ToFileSourceIndex, ToPathIndex: Integer);
     procedure miHotAddOrConfigClick(Sender: TObject);
+    procedure OnCopyOutTempStateChanged(Operation: TFileSourceOperation; State: TFileSourceOperationState);
 
     {en
        Returns @true if copy operation has been successfully started.
@@ -803,6 +809,7 @@ type
     procedure UpdateSelectedDrives;
     procedure UpdateGUIFunctionKeys;
     procedure CreateDiskPanel(dskPanel : TKASToolBar);
+    procedure SetPanelDrive(aPanel: TFilePanelSelect; Drive: PDrive; ActivateIfNeeded: Boolean);
     function CreateFileView(sType: String; Page: TFileViewPage; AConfig: TXmlConfig; ANode: TXmlNode): TFileView;
     procedure AssignEvents(AFileView: TFileView);
     function RemovePage(ANoteBook: TFileViewNotebook; iPageIndex:Integer; CloseLocked: Boolean = True; ConfirmCloseLocked: integer = 0; ShowButtonAll: Boolean = False): LongInt;
@@ -821,6 +828,7 @@ type
     procedure SaveMainToolBar;
     procedure ConfigSaveSettings;
     function  IsCommandLineVisible: Boolean;
+    procedure ShowCommandLine(AFocus: Boolean);
     procedure ShowDrivesList(APanel: TFilePanelSelect);
     procedure ExecuteCommandLine(bRunInTerm: Boolean);
     procedure UpdatePrompt;
@@ -843,6 +851,7 @@ type
                                   var DropParams: TDropParams);
 
 
+    property Drives: TDrivesList read DrivesList;
     property Commands: TMainCommands read FCommands implements IFormCommands;
     property SelectedPanel: TFilePanelSelect read PanelSelected write SetPanelSelected;
     property LeftTabs: TFileViewNotebook read nbLeft;
@@ -859,7 +868,7 @@ implementation
 {$R *.lfm}
 
 uses
-  uFileProcs, uShellContextMenu, fTreeViewMenu,
+  uFileProcs, uShellContextMenu, fTreeViewMenu, uSearchResultFileSource,
   Math, LCLIntf, Dialogs, uGlobs, uLng, uMasks, fCopyMoveDlg, uQuickViewPanel,
   uShowMsg, uDCUtils, uLog, uGlobsPaths, LCLProc, uOSUtils, uPixMapManager, LazUTF8,
   uDragDropEx, uKeyboard, uFileSystemFileSource, fViewOperations, uMultiListFileSource,
@@ -1108,23 +1117,21 @@ end;
 procedure TfrmMain.btnF3MouseWheelDown(Sender: TObject; Shift: TShiftState;
   MousePos: TPoint; var Handled: Boolean);
 begin
-  if (ssCtrl in Shift) and (gFonts[dcfFunctionButtons].Size>MIN_FONT_SIZE_FUNCTION_BUTTONS) then
+  if (ssCtrl in Shift) and (gFonts[dcfFunctionButtons].Size > MIN_FONT_SIZE_FUNCTION_BUTTONS) then
   begin
-    dec(gFonts[dcfFunctionButtons].Size);
-    pnlKeys.Height:=pnlKeys.Height-1;
+    Dec(gFonts[dcfFunctionButtons].Size);
+    UpdateGUIFunctionKeys;
   end;
-  UpdateGUIFunctionKeys;
 end;
 
 procedure TfrmMain.btnF3MouseWheelUp(Sender: TObject; Shift: TShiftState;
   MousePos: TPoint; var Handled: Boolean);
 begin
-  if (ssCtrl in Shift) and (gFonts[dcfFunctionButtons].Size<MAX_FONT_SIZE_FUNCTION_BUTTONS) then
+  if (ssCtrl in Shift) and (gFonts[dcfFunctionButtons].Size < MAX_FONT_SIZE_FUNCTION_BUTTONS) then
   begin
-    inc(gFonts[dcfFunctionButtons].Size);
-    pnlKeys.Height:=pnlKeys.Height+1;
+    Inc(gFonts[dcfFunctionButtons].Size);
+    UpdateGUIFunctionKeys;
   end;
-  UpdateGUIFunctionKeys;
 end;
 
 procedure TfrmMain.btnF8MouseDown(Sender: TObject; Button: TMouseButton;
@@ -2589,6 +2596,7 @@ procedure TfrmMain.GetListOpenedPaths(const APaths: TStringList);
   end;
 
 begin
+  APaths.Clear;
   GetNotebookPaths(nbLeft);
   GetNotebookPaths(nbRight);
 end;
@@ -3190,6 +3198,12 @@ begin
   end;
 end;
 
+procedure TfrmMain.OnCopyOutTempStateChanged(Operation: TFileSourceOperation;
+  State: TFileSourceOperationState);
+begin
+  FModalOperationResult:= Operation.Result = fsorFinished;
+end;
+
 function TfrmMain.CopyFiles(SourceFileSource, TargetFileSource: IFileSource;
                             var SourceFiles: TFiles; TargetPath: String;
                             bShowDialog: Boolean;
@@ -3244,14 +3258,17 @@ begin
       OperationClass := TargetFileSource.GetOperationClass(fsoCopyIn);
     end
     else if (fsoCopyOut in SourceFileSource.GetOperationsTypes) and
-            (fsoCopyIn in TargetFileSource.GetOperationsTypes) and
-            (not (fspCopyOutOnMainThread in SourceFileSource.Properties)) and
-            (not (fspCopyInOnMainThread in TargetFileSource.Properties)) then
+            (fsoCopyIn in TargetFileSource.GetOperationsTypes) then
     begin
       OperationTemp := True;
       OperationType := fsoCopyOut;
       FileSource := SourceFileSource;
       OperationClass := SourceFileSource.GetOperationClass(fsoCopyOut);
+      if (fspCopyOutOnMainThread in SourceFileSource.Properties) or
+         (fspCopyInOnMainThread in TargetFileSource.Properties) then
+      begin
+        QueueIdentifier:= ModalQueueId;
+      end;
     end
     else
     begin
@@ -3268,6 +3285,14 @@ begin
       CopyDialog.edtDst.Text := sDestination;
       CopyDialog.edtDst.ReadOnly := OperationTemp;
       CopyDialog.lblCopySrc.Caption := GetFileDlgStr(rsMsgCpSel, rsMsgCpFlDr, SourceFiles);
+
+      if OperationTemp and (QueueIdentifier = ModalQueueId) then
+      begin
+        CopyDialog.QueueIdentifier:= QueueIdentifier;
+        CopyDialog.btnAddToQueue.Visible:= False;
+        CopyDialog.btnCreateSpecialQueue.Visible:= False;
+        CopyDialog.btnOptions.Visible:= False;
+      end;
 
       while True do
       begin
@@ -3345,6 +3370,11 @@ begin
       if Assigned(CopyDialog) then
         CopyDialog.SetOperationOptions(Operation);
 
+      if OperationTemp and (QueueIdentifier = ModalQueueId) then
+      begin
+        Operation.AddStateChangedListener([fsosStopped], @OnCopyOutTempStateChanged);
+      end;
+
       // Start operation.
       OperationsManager.AddOperation(Operation, QueueIdentifier, False, True);
       Result := True;
@@ -3353,7 +3383,7 @@ begin
       msgWarning(rsMsgNotImplemented);
 
     // Copy via temp directory
-    if OperationTemp and Result then
+    if OperationTemp and Result and ((QueueIdentifier <> ModalQueueId) or FModalOperationResult) then
     begin
       // CopyIn from temp filesystem
       Operation := FileSource.CreateCopyInOperation(
@@ -3392,6 +3422,10 @@ var
 begin
   Result := False;
   try
+    // Special case for Search Result File Source
+    if SourceFileSource.IsClass(TSearchResultFileSource) then begin
+      SourceFileSource:= ISearchResultFileSource(SourceFileSource).FileSource;
+    end;
     // Only allow moving within the same file source.
     if (SourceFileSource.IsInterface(TargetFileSource) or
         TargetFileSource.IsInterface(SourceFileSource)) and
@@ -3649,7 +3683,7 @@ begin
   begin
     DisableAutoSizing;
     try
-      ScaleFontsPPI(AYProportion);
+      // ScaleFontsPPI(AYProportion);
       BorderSpacing.AutoAdjustLayout(AXProportion, AYProportion);
       Constraints.AutoAdjustLayout(AXProportion, AYProportion);
     finally
@@ -3805,24 +3839,8 @@ end;
 
 procedure TfrmMain.pnlLeftRightDblClick(Sender: TObject);
 var
-  APanel: TPanel;
-  APoint: TPoint;
   FileViewNotebook: TFileViewNotebook;
 begin
-  if Sender is TPanel then
-  begin
-    APanel := Sender as TPanel;
-    if APanel = pnlLeft then
-      begin
-        APoint := FrameLeft.ClientToScreen(Classes.Point(0, FrameLeft.Top));
-        if Mouse.CursorPos.Y < APoint.Y then Commands.DoNewTab(nbLeft);
-      end
-    else if APanel = pnlRight then
-      begin
-        APoint := FrameRight.ClientToScreen(Classes.Point(0, FrameRight.Top));
-        if Mouse.CursorPos.Y < APoint.Y then Commands.DoNewTab(nbRight);
-      end;
-  end;
   if Sender is TFileViewNotebook then
   begin
     FileViewNotebook:= Sender as TFileViewNotebook;
@@ -4912,7 +4930,6 @@ begin
     pnlKeys.Visible := gKeyButtons;
     if gKeyButtons then
     begin
-      pnlKeys.Height := Canvas.TextHeight('Wg') + 4;
       pnlKeys.Top:= Height * 2;
       HMForm := HotMan.Forms.Find('Main');
       for I := 0 to pnlKeys.ControlCount - 1 do
@@ -4929,6 +4946,7 @@ begin
           end;
         end;
       end;
+      UpdateGUIFunctionKeys;
     end;
 
     UpdateNoteBook(nbLeft);
@@ -5516,6 +5534,20 @@ begin
   Result := (edtCommand.Visible and pnlCommand.Visible and pnlCmdLine.Visible);
 end;
 
+procedure TfrmMain.ShowCommandLine(AFocus: Boolean);
+begin
+  if edtCommand.Visible then
+  begin
+    // Show temporarily command line on user request.
+    if not (gCmdLine and frmMain.IsCommandLineVisible) then
+    begin
+      pnlCommand.Show;
+      pnlCmdLine.Show;
+    end;
+    if AFocus then edtCommand.SetFocus;
+  end;
+end;
+
 function TfrmMain.FindMatchingDrive(Address, Path: String): Integer;
 var
   I : Integer;
@@ -5646,19 +5678,20 @@ end;
 
 procedure TfrmMain.UpdateGUIFunctionKeys;
 var
-  i,c1,c2:integer;
+  I: Integer;
+  H: Integer = 0;
+  AButton: TSpeedButton;
 begin
-  i:=0;
-  c1:=pnlKeys.ControlCount;
-  c2:=pnlKeys.ComponentCount;
-  while(i<pnlKeys.ControlCount)do
+  for I:= 0 to pnlKeys.ControlCount - 1 do
   begin
-      if pnlKeys.Controls[i] is TSpeedButton then
-      begin
-        TSpeedButton(pnlKeys.Controls[i]).Font.Size:=gFonts[dcfFunctionButtons].Size;
-      end;
-  inc(i);
+    if pnlKeys.Controls[I] is TSpeedButton then
+    begin
+      AButton:= TSpeedButton(pnlKeys.Controls[I]);
+      AButton.Font.Size := gFonts[dcfFunctionButtons].Size;
+      H:= Max(H, AButton.Canvas.TextHeight(AButton.Caption));
+    end;
   end;
+  pnlKeys.Height := H + 4;
 end;
 
 procedure TfrmMain.ShowDrivesList(APanel: TFilePanelSelect);

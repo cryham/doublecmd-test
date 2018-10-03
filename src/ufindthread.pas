@@ -27,7 +27,7 @@ unit uFindThread;
 interface
 
 uses
-  Classes, SysUtils, uFindFiles, uFindEx, uFindByrMr, uMasks, uRegExpr;
+  Classes, SysUtils, uFindFiles, uFindEx, uFindByrMr, uMasks, uRegExprA, uRegExprW;
 
 type
 
@@ -50,7 +50,9 @@ type
     FFilesMasks: TMaskList;
     FExcludeFiles: TMaskList;
     FExcludeDirectories: TMaskList;
-    FRegExpr: TRegExprEx;
+    FFilesMasksRegExp: TRegExprW;
+    FExcludeFilesRegExp: TRegExprW;
+    FRegExpr: TRegExpr;
 
     FTimeSearchStart:TTime;
     FTimeSearchEnd:TTime;
@@ -87,7 +89,7 @@ type
 implementation
 
 uses
-  LCLProc, StrUtils, LConvEncoding, RegExpr, DCStrUtils,
+  LCLProc, StrUtils, LConvEncoding, DCStrUtils,
   uLng, DCClassesUtf8, uFindMmap, uGlobs, uShowMsg, DCOSUtils, uOSUtils,
   uLog, uWCXmodule, WcxPlugin, Math, uDCUtils, uConvEncoding, DCDateTimeUtils;
 
@@ -108,10 +110,17 @@ begin
 
     if IsFindText then
     begin
-      TextEncoding := NormalizeEncoding(TextEncoding);
-      if TextRegExp then FRegExpr := TRegExprEx.Create(TextEncoding);
-      FindText := ConvertEncoding(FindText, EncodingUTF8, TextEncoding);
-      ReplaceText := ConvertEncoding(ReplaceText, EncodingUTF8, TextEncoding);
+      if HexValue then
+      begin
+        TextEncoding := EncodingAnsi;
+        FindText := HexToBin(FindText);
+      end
+      else begin
+        TextEncoding := NormalizeEncoding(TextEncoding);
+        if TextRegExp then FRegExpr := TRegExpr.Create(TextEncoding);
+        FindText := ConvertEncoding(FindText, EncodingUTF8, TextEncoding);
+        ReplaceText := ConvertEncoding(ReplaceText, EncodingUTF8, TextEncoding);
+      end;
 
       // Determine search type
       if SingleByteEncoding(TextEncoding) then
@@ -140,8 +149,14 @@ begin
 
   with FFileChecks do
   begin
-    FFilesMasks := TMaskList.Create(FilesMasks);
-    FExcludeFiles := TMaskList.Create(ExcludeFiles);
+    if RegExp then begin
+      FFilesMasksRegExp := TRegExprW.Create(UTF8Decode(FilesMasks));
+      FExcludeFilesRegExp := TRegExprW.Create(UTF8Decode(ExcludeFiles));
+    end
+    else begin
+      FFilesMasks := TMaskList.Create(FilesMasks);
+      FExcludeFiles := TMaskList.Create(ExcludeFiles);
+    end;
     FExcludeDirectories := TMaskList.Create(ExcludeDirectories);
   end;
 
@@ -157,6 +172,8 @@ begin
   FreeAndNil(FFilesMasks);
   FreeAndNil(FExcludeFiles);
   FreeThenNil(FLinkTargets);
+  FreeAndNil(FFilesMasksRegExp);
+  FreeAndNil(FExcludeFilesRegExp);
   FreeAndNil(FExcludeDirectories);
   inherited Destroy;
 end;
@@ -189,7 +206,7 @@ begin
       begin
         sPath:= FSelectedFiles[I];
         sPath:= ExcludeBackPathDelimiter(sPath);
-        if FindFirstEx(sPath, faAnyFile, sr) = 0 then
+        if FindFirstEx(sPath, 0, sr) = 0 then
         begin
           if FPS_ISDIR(sr.Attr) then
             WalkAdr(sPath)
@@ -525,13 +542,16 @@ begin
 end;
 
 function TFindThread.CheckFileName(const FileName: String): Boolean;
+var
+  AFileName: UnicodeString;
 begin
   with FFileChecks do
   begin
     if RegExp then
     begin
-      Result := ((FilesMasks = '') or ExecRegExpr(FilesMasks, FileName)) and
-                ((ExcludeFiles = '') or not ExecRegExpr(ExcludeFiles, FileName));
+      AFileName := UTF8Decode(FileName);
+      Result := ((FilesMasks = '') or FFilesMasksRegExp.Exec(AFileName)) and
+                ((ExcludeFiles = '') or not FExcludeFilesRegExp.Exec(AFileName));
     end
     else
     begin
@@ -568,36 +588,37 @@ begin
       Result := CheckFileAttributes(FFileChecks, sr.Attr);
 
     if (Result and IsFindText) then
-       begin
-         if FPS_ISDIR(sr.Attr) then
-           Exit(False);
+    begin
+      if FPS_ISDIR(sr.Attr) or (sr.Size = 0) then
+        Exit(False);
 
-         try
-           Result := FindInFile(Folder + PathDelim + sr.Name, FindText, CaseSensitive, TextRegExp);
+      try
+        Result := FindInFile(Folder + PathDelim + sr.Name, FindText, CaseSensitive, TextRegExp);
 
-           if (Result and IsReplaceText) then
-             FileReplaceString(Folder + PathDelim + sr.Name, FindText, ReplaceText, CaseSensitive, TextRegExp);
+        if (Result and IsReplaceText) then
+          FileReplaceString(Folder + PathDelim + sr.Name, FindText, ReplaceText, CaseSensitive, TextRegExp);
 
-           if NotContainingText then
-             Result := not Result;
+        if NotContainingText then
+          Result := not Result;
 
-         except
-           on E : Exception do
-           begin
-             Result := False;
-             if (log_errors in gLogOptions) then
-             begin
-               logWrite(Self, rsMsgLogError + E.Message + ' (' +
-                        Folder + PathDelim + sr.Name + ')', lmtError);
-             end;
-           end;
-         end;
-       end;
+      except
+        on E : Exception do
+        begin
+          Result := False;
+          if (log_errors in gLogOptions) then
+          begin
+            logWrite(Self, rsMsgLogError + E.Message + ' (' +
+                     Folder + PathDelim + sr.Name + ')', lmtError);
+          end;
+        end;
+      end;
+    end;
+
     if Result and ContentPlugin then
     begin
       Result:= CheckPlugin(FSearchTemplate, Folder + PathDelim + sr.Name);
     end;
-   end;
+  end;
 end;
 
 procedure TFindThread.DoFile(const sNewDir: String; const sr : TSearchRecEx);
@@ -630,7 +651,7 @@ begin
   // Search all files to display statistics
   Path := IncludeTrailingBackslash(sNewDir) + '*';
 
-  if FindFirstEx(Path, faAnyFile, sr) = 0 then
+  if FindFirstEx(Path, 0, sr) = 0 then
   repeat
     if not (FPS_ISDIR(sr.Attr) or FileIsLinkToDirectory(sNewDir + PathDelim + sr.Name, sr.Attr)) then
       DoFile(sNewDir, sr)

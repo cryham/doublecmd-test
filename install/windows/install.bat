@@ -9,7 +9,6 @@ mkdir  %DC_INSTALL_DIR%
 mkdir  %DC_INSTALL_DIR%\plugins
 rem WCX plugins directories
 mkdir  %DC_INSTALL_DIR%\plugins\wcx
-mkdir  %DC_INSTALL_DIR%\plugins\wcx\deb
 mkdir  %DC_INSTALL_DIR%\plugins\wcx\rpm
 mkdir  %DC_INSTALL_DIR%\plugins\wcx\sevenzip
 mkdir  %DC_INSTALL_DIR%\plugins\wcx\unrar
@@ -42,7 +41,6 @@ copy *.dll                          %DC_INSTALL_DIR%\
 
 rem copy plugins
 rem WCX
-copy  plugins\wcx\deb\lib\deb.wcx         %DC_INSTALL_DIR%\plugins\wcx\deb\
 copy  plugins\wcx\rpm\lib\rpm.wcx         %DC_INSTALL_DIR%\plugins\wcx\rpm\
 copy  plugins\wcx\sevenzip\sevenzip.wcx   %DC_INSTALL_DIR%\plugins\wcx\sevenzip\
 copy  plugins\wcx\unrar\lib\unrar.wcx     %DC_INSTALL_DIR%\plugins\wcx\unrar\
@@ -54,3 +52,4 @@ copy  plugins\wdx\scripts\*               %DC_INSTALL_DIR%\plugins\wdx\scripts\
 copy  plugins\wdx\audioinfo\audioinfo.wdx %DC_INSTALL_DIR%\plugins\wdx\audioinfo\
 rem WFX
 copy  plugins\wfx\ftp\ftp.wfx             %DC_INSTALL_DIR%\plugins\wfx\ftp\
+xcopy /E plugins\wfx\ftp\language         %DC_INSTALL_DIR%\plugins\wfx\ftp\language\

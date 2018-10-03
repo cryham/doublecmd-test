@@ -12,7 +12,7 @@ uses
 
 type
 
-  TUpdateProgress = function(SourceName, TargetName: String; PercentDone: Integer): Integer of object;
+  TUpdateProgress = function(SourceName, TargetName: PAnsiChar; PercentDone: Integer): Integer of object;
 
   { IWfxPluginFileSource }
 
@@ -21,6 +21,7 @@ type
 
     procedure FillAndCount(Files: TFiles; CountDirs: Boolean; ExcludeRootDir: Boolean;
                            out NewFiles: TFiles; out FilesCount: Int64; out FilesSize: Int64);
+    function FillSingleFile(const FullPath: String; out aFile: TFile): Boolean;
     function WfxCopyMove(sSourceFile, sTargetFile: String; Flags: LongInt;
                          RemoteInfo: PRemoteInfo; Internal, CopyMoveIn: Boolean): LongInt;
 
@@ -85,6 +86,7 @@ type
   public
     procedure FillAndCount(Files: TFiles; CountDirs: Boolean; ExcludeRootDir: Boolean;
                            out NewFiles: TFiles; out FilesCount: Int64; out FilesSize: Int64);
+    function FillSingleFile(const FullPath: String; out aFile: TFile): Boolean;
     function WfxCopyMove(sSourceFile, sTargetFile: String; Flags: LongInt;
                          RemoteInfo: PRemoteInfo; Internal, CopyMoveIn: Boolean): LongInt;
   public
@@ -182,7 +184,7 @@ var
 
 { CallBack functions }
 
-function MainProgressProc(PluginNr: Integer; SourceName, TargetName: String; PercentDone: Integer): Integer;
+function MainProgressProc(PluginNr: Integer; SourceName, TargetName: PAnsiChar; PercentDone: Integer): Integer;
 var
   CallbackDataClass: TCallbackDataClass;
 begin
@@ -210,22 +212,36 @@ end;
 
 function MainProgressProcA(PluginNr: Integer; SourceName, TargetName: PAnsiChar; PercentDone: Integer): Integer; dcpcall;
 var
-  sSourceName,
-  sTargetName: String;
+  sSourceName, sTargetName: String;
 begin
-  sSourceName:= CeSysToUtf8(StrPas(SourceName));
-  sTargetName:= CeSysToUtf8(StrPas(TargetName));
-  Result:= MainProgressProc(PluginNr, sSourceName, sTargetName, PercentDone);
+  if Assigned(SourceName) then
+  begin
+    sSourceName:= CeSysToUtf8(StrPas(SourceName));
+    SourceName:= PAnsiChar(sSourceName);
+  end;
+  if Assigned(TargetName) then
+  begin
+    sTargetName:= CeSysToUtf8(StrPas(TargetName));
+    TargetName:= PAnsiChar(sTargetName);
+  end;
+  Result:= MainProgressProc(PluginNr, SourceName, TargetName, PercentDone);
 end;
 
 function MainProgressProcW(PluginNr: Integer; SourceName, TargetName: PWideChar; PercentDone: Integer): Integer; dcpcall;
 var
-  sSourceName,
-  sTargetName: String;
+  sSourceName, sTargetName: String;
 begin
-  sSourceName:= UTF16ToUTF8(UnicodeString(SourceName));
-  sTargetName:= UTF16ToUTF8(UnicodeString(TargetName));
-  Result:= MainProgressProc(PluginNr, sSourceName, sTargetName, PercentDone);
+  if Assigned(SourceName) then
+  begin
+    sSourceName:= UTF16ToUTF8(UnicodeString(SourceName));
+    SourceName:= Pointer(PAnsiChar(sSourceName));
+  end;
+  if Assigned(TargetName) then
+  begin
+    sTargetName:= UTF16ToUTF8(UnicodeString(TargetName));
+    TargetName:= Pointer(PAnsiChar(sTargetName));
+  end;
+  Result:= MainProgressProc(PluginNr, Pointer(SourceName), Pointer(TargetName), PercentDone);
 end;
 
 procedure MainLogProc(PluginNr, MsgType: Integer; LogString: String);
@@ -404,51 +420,47 @@ end;
 function CryptProc(PluginNr, CryptoNumber: Integer; Mode: Integer; ConnectionName: String; var Password: String): Integer;
 const
   cPrefix = 'wfx';
+  cResult: array[TCryptStoreResult] of Integer = (FS_FILE_OK, FS_FILE_NOTSUPPORTED, FS_FILE_WRITEERROR, FS_FILE_READERROR, FS_FILE_NOTFOUND);
 var
   sGroup,
   sPassword: AnsiString;
+  MyResult: TCryptStoreResult;
 begin
-  try
-    sGroup:= WfxOperationList[CryptoNumber];
-    case Mode of
-    FS_CRYPT_SAVE_PASSWORD:
+  MyResult:= csrSuccess;
+  sGroup:= WfxOperationList[CryptoNumber];
+  case Mode of
+  FS_CRYPT_SAVE_PASSWORD:
+    begin
+      MyResult:= PasswordStore.WritePassword(cPrefix, sGroup, ConnectionName, Password);
+    end;
+  FS_CRYPT_LOAD_PASSWORD,
+  FS_CRYPT_LOAD_PASSWORD_NO_UI:
+    begin
+      if (Mode = FS_CRYPT_LOAD_PASSWORD_NO_UI) and (PasswordStore.HasMasterKey = False) then
+        Exit(FS_FILE_NOTFOUND);
+      MyResult:= PasswordStore.ReadPassword(cPrefix, sGroup, ConnectionName, Password);
+    end;
+  FS_CRYPT_COPY_PASSWORD,
+  FS_CRYPT_MOVE_PASSWORD:
+    begin
+      MyResult:= PasswordStore.ReadPassword(cPrefix, sGroup, ConnectionName, sPassword);
+      if MyResult = csrSuccess then
       begin
-        if PasswordStore.WritePassword(cPrefix, sGroup, ConnectionName, Password) then
-          Result:= FS_FILE_OK
-        else
-          Result:= FS_FILE_WRITEERROR;
-      end;
-    FS_CRYPT_LOAD_PASSWORD,
-    FS_CRYPT_LOAD_PASSWORD_NO_UI:
-      begin
-        Result:= FS_FILE_READERROR;
-        if (Mode = FS_CRYPT_LOAD_PASSWORD_NO_UI) and (PasswordStore.HasMasterKey = False) then
-          Exit(FS_FILE_NOTFOUND);
-        if PasswordStore.ReadPassword(cPrefix, sGroup, ConnectionName, Password) then
-          Result:= FS_FILE_OK;
-      end;
-    FS_CRYPT_COPY_PASSWORD,
-    FS_CRYPT_MOVE_PASSWORD:
-      begin
-        Result:= FS_FILE_READERROR;
-        if PasswordStore.ReadPassword(cPrefix, sGroup, ConnectionName, sPassword) then
-          begin
-            if not PasswordStore.WritePassword(cPrefix, sGroup, Password, sPassword) then
-              Exit(FS_FILE_WRITEERROR);
-            if Mode = FS_CRYPT_MOVE_PASSWORD then
-              PasswordStore.DeletePassword(cPrefix, sGroup, ConnectionName);
-            Result:= FS_FILE_OK;
-          end;
-      end;
-    FS_CRYPT_DELETE_PASSWORD:
-      begin
-        PasswordStore.DeletePassword(cPrefix, sGroup, ConnectionName);
-        Result:= FS_FILE_OK;
+        MyResult:= PasswordStore.WritePassword(cPrefix, sGroup, Password, sPassword);
+        if (MyResult = csrSuccess) and (Mode = FS_CRYPT_MOVE_PASSWORD) then
+        begin
+          if not PasswordStore.DeletePassword(cPrefix, sGroup, ConnectionName) then
+            MyResult:= csrWriteError;
+        end;
       end;
     end;
-  except
-    Result:= FS_FILE_NOTSUPPORTED;
+  FS_CRYPT_DELETE_PASSWORD:
+    begin
+      if not PasswordStore.DeletePassword(cPrefix, sGroup, ConnectionName) then
+        MyResult:= csrWriteError;
+    end;
   end;
+  Result:= cResult[MyResult];
 end;
 
 function CryptProcA(PluginNr, CryptoNumber: Integer; Mode: Integer; ConnectionName, Password: PAnsiChar; MaxLen: Integer): Integer; dcpcall;
@@ -484,6 +496,8 @@ end;
 { TWfxPluginFileSource }
 
 constructor TWfxPluginFileSource.Create(aModuleFileName, aPluginRootName: String);
+var
+  AFlags: Integer;
 begin
   inherited Create;
   FPluginNumber:= -1;
@@ -510,10 +524,16 @@ begin
 
       VFSInit;
 
+      if not PasswordStore.MasterKeySet then
+        AFlags:= 0
+      else begin
+        AFlags:= FS_CRYPTOPT_MASTERPASS_SET;
+      end;
+
       if Assigned(FsSetCryptCallbackW) then
-        FsSetCryptCallbackW(@CryptProcW, FPluginNumber, 0);
+        FsSetCryptCallbackW(@CryptProcW, FPluginNumber, AFlags);
       if Assigned(FsSetCryptCallback) then
-        FsSetCryptCallback(@CryptProcA, FPluginNumber, 0);
+        FsSetCryptCallback(@CryptProcA, FPluginNumber, AFlags);
     end;
   end;
 
@@ -755,6 +775,34 @@ begin
   end;
 end;
 
+function TWfxPluginFileSource.FillSingleFile(const FullPath: String; out aFile: TFile): Boolean;
+var
+  FilePath, ExpectedFileName: String;
+  FindData: TWfxFindData;
+  Handle: THandle;
+begin
+  Result := False;
+  aFile := nil;
+  FilePath := ExtractFilePath(FullPath);
+  ExpectedFileName := ExtractFileName(FullPath);
+  with FWfxModule do
+  begin
+    Handle := WfxFindFirst(FilePath, FindData);
+    if Handle = wfxInvalidHandle then Exit;
+
+    repeat
+      if (FindData.FileName = ExpectedFileName) then
+      begin
+        aFile := TWfxPluginFileSource.CreateFile(FilePath, FindData);
+        Result := True;
+        Break;
+      end;
+    until not WfxFindNext(Handle, FindData);
+
+    FsFindClose(Handle);
+  end;
+end;
+
 function TWfxPluginFileSource.WfxCopyMove(sSourceFile, sTargetFile: String;
                                           Flags: LongInt; RemoteInfo: PRemoteInfo;
                                           Internal, CopyMoveIn: Boolean): LongInt;
@@ -782,18 +830,20 @@ end;
 
 constructor TWfxPluginFileSource.Create(const URI: TURI);
 var
+  Index: Integer;
   sModuleFileName: String;
 begin
-  if gWFXPlugins.Count = 0 then Exit;
   // Check if there is a registered plugin for the name of the file system plugin.
-  sModuleFileName:= gWFXPlugins.Values[URI.Host];
-  if sModuleFileName <> EmptyStr then
-    begin
-      sModuleFileName:= GetCmdDirFromEnvVar(sModuleFileName);
-      Create(sModuleFileName, URI.Host);
+  Index:= gWFXPlugins.FindFirstEnabledByName(URI.Host);
+  if Index < 0 then begin
+    raise EFileSourceException.Create('Cannot find Wfx module ' + URI.Host);
+  end;
 
-      DCDebug('Found registered plugin ' + sModuleFileName + ' for file system ' + URI.Host);
-    end;
+  sModuleFileName:= gWFXPlugins.FileName[Index];
+  sModuleFileName:= GetCmdDirFromEnvVar(sModuleFileName);
+  Create(sModuleFileName, URI.Host);
+
+  DCDebug('Found registered plugin ' + sModuleFileName + ' for file system ' + URI.Host);
 end;
 
 function TWfxPluginFileSource.CreateListOperation(TargetPath: String): TFileSourceOperation;

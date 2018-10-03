@@ -3,7 +3,7 @@
    -------------------------------------------------------------------------
    WFX plugin for working with File Transfer Protocol
 
-   Copyright (C) 2009-2017 Alexander Koblov (alexx2000@mail.ru)
+   Copyright (C) 2009-2018 Alexander Koblov (alexx2000@mail.ru)
 
    This library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -28,7 +28,7 @@ interface
 
 uses
   Classes, SysUtils, WfxPlugin, FtpSend, LazUTF8Classes, LConvEncoding,
-  DCConvertEncoding;
+  DCConvertEncoding, DCFileAttributes, DCBasicTypes, blcksock;
 
 type
   TConvertUTF8ToEncodingFunc = function(const S: String {$IFDEF FPC_HAS_CPSTRING}; SetTargetCodePage: Boolean = False{$ENDIF}): RawByteString;
@@ -42,8 +42,11 @@ type
   { TFTPListRecEx }
 
   TFTPListRecEx = class(TFTPListRec)
+  private
+    FMode: TFileAttrs;
   public
     procedure Assign(Value: TFTPListRec); override;
+    property Mode: TFileAttrs read FMode write FMode;
   end;
 
   { TFTPListEx }
@@ -51,6 +54,8 @@ type
   TFTPListEx = class(TFTPList)
   private
     FIndex: Integer;
+  protected
+    procedure FillRecord(const Value: TFTPListRec); override;
   public
     procedure Clear; override;
     procedure Assign(Value: TFTPList); override;
@@ -78,23 +83,27 @@ type
 
   TFTPSendEx = class(TFTPSend)
   private
-    FAuto: Boolean;
     FUnicode: Boolean;
     FSetTime: Boolean;
     FMachine: Boolean;
-    FShowHidden: String;
+    FShowHidden: Boolean;
+    FShowHiddenText: String;
     FUseAllocate: Boolean;
     FTcpKeepAlive: Boolean;
     FKeepAliveTransfer: Boolean;
-  private
+    procedure SetEncoding(AValue: String);
+  protected
     ConvertToUtf8: TConvertEncodingFunction;
     ConvertFromUtf8: TConvertUTF8ToEncodingFunc;
   protected
+    FAuto: Boolean;
     FEncoding: String;
+    FPublicKey, FPrivateKey: String;
     function Connect: Boolean; override;
     function DataSocket: Boolean; override;
     function ListMachine(Directory: String): Boolean;
     procedure DoStatus(Response: Boolean; const Value: string); override;
+    procedure OnSocketStatus(Sender: TObject; Reason: THookSocketReason; const Value: String);
   public
     function ClientToServer(const Value: UnicodeString): AnsiString;
     function ServerToClient(const Value: AnsiString): UnicodeString;
@@ -102,13 +111,14 @@ type
     function FsFindFirstW(const Path: String; var FindData: TWin32FindDataW): Pointer; virtual;
     function FsFindNextW(Handle: Pointer; var FindData: TWin32FindDataW): BOOL; virtual;
     function FsFindClose(Handle: Pointer): Integer; virtual;
-    function FsSetTime(const FileName: String; LastAccessTime, LastWriteTime: PFileTime): BOOL; virtual;
+    function FsSetTime(const FileName: String; LastAccessTime, LastWriteTime: PWfxFileTime): BOOL; virtual;
   public
     constructor Create(const Encoding: String); virtual; reintroduce;
     function Login: Boolean; override;
     function Clone: TFTPSendEx; virtual;
     procedure CloneTo(AValue: TFTPSendEx); virtual;
     procedure ParseRemote(Value: string); override;
+    function FileExists(const FileName: String): Boolean; virtual;
     function CreateDir(const Directory: string): Boolean; override;
     function ExecuteCommand(const Command: String): Boolean; virtual;
     function ChangeMode(const FileName, Mode: String): Boolean; virtual;
@@ -117,8 +127,12 @@ type
     function RetrieveFile(const FileName: string; FileSize: Int64; Restore: Boolean): Boolean; virtual; overload;
     function NetworkError(): Boolean;
   public
+    property Encoding: String write SetEncoding;
     property UseAllocate: Boolean write FUseAllocate;
     property TcpKeepAlive: Boolean write FTcpKeepAlive;
+    property PublicKey: String read FPublicKey write FPublicKey;
+    property PrivateKey: String read FPrivateKey write FPrivateKey;
+    property ShowHidden: Boolean read FShowHidden write FShowHidden;
     property KeepAliveTransfer: Boolean read FKeepAliveTransfer write FKeepAliveTransfer;
   end;
 
@@ -129,7 +143,12 @@ type
 implementation
 
 uses
-  LazUTF8, LazFileUtils, FtpFunc, FtpUtils, synautil, synsock, blcksock;
+  LazUTF8, LazFileUtils, FtpFunc, FtpUtils, synautil, synsock, DCStrUtils,
+  DCDateTimeUtils
+{$IF (FPC_FULLVERSION < 30000)}
+  , LazUTF8SysUtils
+{$ENDIF}
+  ;
 
 {$IF NOT DECLARED(EncodingCP1250)}
 const
@@ -178,6 +197,10 @@ procedure TFTPListRecEx.Assign(Value: TFTPListRec);
 begin
   inherited Assign(Value);
   Permission:= Value.Permission;
+  if Value is TFTPListRecEx then
+    Mode:= TFTPListRecEx(Value).Mode
+  else
+    Mode:= UnixStrToFileAttr(Permission);
 end;
 
 { TFTPListEx }
@@ -186,6 +209,19 @@ procedure TFTPListEx.Clear;
 begin
   FIndex := 0;
   inherited Clear;
+end;
+
+procedure TFTPListEx.FillRecord(const Value: TFTPListRec);
+var
+  flr: TFTPListRecEx;
+begin
+  inherited FillRecord(Value);
+  if Value.Directory and (Value.FileName = '..') then
+  begin
+    flr := TFTPListRecEx.Create;
+    flr.Assign(Value);
+    FList.Add(flr);
+  end;
 end;
 
 procedure TFTPListEx.Assign(Value: TFTPList);
@@ -241,194 +277,9 @@ end;
 
 { TFTPSendEx }
 
-function TFTPSendEx.Connect: Boolean;
-var
-  Option: Cardinal = 1;
-  Message: UnicodeString;
+procedure TFTPSendEx.SetEncoding(AValue: String);
 begin
-  Result:= inherited Connect;
-  if Result then LogProc(PluginNumber, MSGTYPE_CONNECT, nil);
-  // Apply TcpKeepAlive option
-  if FTcpKeepAlive and Result then
-  begin
-    if SetSockOpt(FSock.Socket, SOL_SOCKET, SO_KEEPALIVE, @Option, SizeOf(Option)) <> 0 then
-    begin
-      Message := UTF8ToUTF16(FSock.GetErrorDesc(synsock.WSAGetLastError));
-      LogProc(PluginNumber, msgtype_importanterror, PWideChar('CSOCK ERROR ' + Message));
-    end;
-  end;
-end;
-
-function TFTPSendEx.DataSocket: Boolean;
-var
-  Message: UnicodeString;
-begin
-  Result:= inherited DataSocket;
-  if FDSock.LastError <> 0 then begin
-    Message:= UTF8ToUTF16(CeSysToUtf8(FDSock.LastErrorDesc));
-    LogProc(PluginNumber, msgtype_importanterror, PWideChar('DSOCK ERROR ' + Message));
-  end;
-end;
-
-function TFTPSendEx.ListMachine(Directory: String): Boolean;
-var
-  v: String;
-  s, x, y: Integer;
-  flr: TFTPListRec;
-  option, value: String;
-begin
-  FFTPList.Clear;
-  Result := False;
-  FDataStream.Clear;
-  if Directory <> '' then
-    Directory := ' ' + Directory;
-  FTPCommand('TYPE A');
-  if not DataSocket then Exit;
-  x := FTPCommand('MLSD' + Directory);
-  if (x div 100) <> 1 then Exit;
-  Result := DataRead(FDataStream);
-  if Result then
-  begin
-    FDataStream.Position := 0;
-    FFTPList.Lines.LoadFromStream(FDataStream);
-    for x:= 0 to FFTPList.Lines.Count - 1 do
-    begin
-      s:= 1;
-      flr := TFTPListRec.Create;
-      v:= FFTPList.Lines[x];
-      flr.OriginalLine:= v;
-      for y:= 1 to Length(v) do
-      begin
-        if v[y] = '=' then
-        begin
-          option:= LowerCase(Copy(v, s, y - s));
-          s:= y + 1;
-        end
-        else if v[y] = ';' then
-        begin
-          value:= LowerCase(Copy(v, s, y - s));
-          if (option = 'type') then
-          begin
-            flr.Directory:= (value = 'dir');
-          end
-          else if (option = 'modify') then
-          begin
-            flr.FileTime:= DecodeMachineTime(value);
-          end
-          else if (option = 'size') then
-          begin
-            flr.FileSize:= StrToInt64Def(value, 0);
-          end
-          else if (option = 'unix.mode') then
-          begin
-            flr.Permission:= value;
-          end;
-          if (y < Length(v)) and (v[y + 1] = ' ') then
-          begin
-            flr.FileName:= SeparateLeft(Copy(v, y + 2, MaxInt), ' -> ');
-            break;
-          end;
-          s:= y + 1;
-        end;
-      end;
-      FFTPList.List.Add(flr);
-      // DoStatus(True, FFTPList.Lines[x]);
-    end;
-  end;
-  FDataStream.Position := 0;
-end;
-
-procedure TFTPSendEx.DoStatus(Response: Boolean; const Value: string);
-var
-  Index: Integer;
-  Message: UnicodeString;
-begin
-  Index:= Pos('PASS ', Value);
-  if Index = 0 then
-    Message:= ServerToClient(Value)
-  else begin
-    Message:= ServerToClient(Copy(Value, 1, Index + 4)) + '********';
-  end;
-  LogProc(PluginNumber, msgtype_details, PWideChar(Message));
-  if FSock.LastError <> 0 then begin
-    Message:= UTF8ToUTF16(CeSysToUtf8(FSock.LastErrorDesc));
-    LogProc(PluginNumber, msgtype_importanterror, PWideChar('CSOCK ERROR ' + Message));
-  end;
-end;
-
-function TFTPSendEx.ClientToServer(const Value: UnicodeString): AnsiString;
-begin
-  Result:= ConvertFromUtf8(UTF16ToUTF8(Value));
-end;
-
-function TFTPSendEx.ServerToClient(const Value: AnsiString): UnicodeString;
-begin
-  Result:= UTF8ToUTF16(ConvertToUtf8(Value));
-end;
-
-function TFTPSendEx.FsFindFirstW(const Path: String; var FindData: TWin32FindDataW): Pointer;
-begin
-  Result:= nil;
-  // Get directory listing
-  if List(Path, False) then
-  begin
-    if FtpList.Count > 0 then
-    begin
-      // Save file list
-      Result:= TFTPListEx.Create;
-      TFTPListEx(Result).Assign(FtpList);
-      FsFindNextW(Result, FindData);
-    end;
-  end;
-end;
-
-function TFTPSendEx.FsFindNextW(Handle: Pointer; var FindData: TWin32FindDataW): BOOL;
-var
-  I: Integer;
-  FtpList: TFTPListEx absolute Handle;
-begin
-  Result := False;
-  if Assigned(FtpList) then
-  begin
-    I := FtpList.FIndex;
-    if I < FtpList.Count then
-    begin
-      FillChar(FindData, SizeOf(FindData), 0);
-      StrPCopy(FindData.cFileName, ServerToClient(FtpList.Items[I].FileName));
-      FindData.dwFileAttributes := FindData.dwFileAttributes or FILE_ATTRIBUTE_UNIX_MODE;
-      if TFTPListEx(FtpList).Items[I].Directory then
-        FindData.dwFileAttributes := FindData.dwFileAttributes or FILE_ATTRIBUTE_DIRECTORY
-      else
-        begin
-          FindData.nFileSizeLow := (FtpList.Items[I].FileSize and MAXDWORD);
-          FindData.nFileSizeHigh := (FtpList.Items[I].FileSize shr $20);
-        end;
-      // set Unix permissions
-      FindData.dwReserved0 := ModeStr2Mode(FtpList.Items[I].Permission);
-      FindData.ftLastWriteTime := DateTimeToFileTime(FtpList.Items[I].FileTime);
-      Inc(FtpList.FIndex);
-      Result := True;
-    end;
-  end;
-end;
-
-function TFTPSendEx.FsFindClose(Handle: Pointer): Integer;
-begin
-  Result:= 0;
-  FreeAndNil(TFTPListEx(Handle));
-end;
-
-constructor TFTPSendEx.Create(const Encoding: String);
-begin
-  inherited Create;
-  FTimeout:= 15000;
-  FDirectFile:= True;
-
-  ConvertToUtf8:= @CeSysToUtf8;
-  ConvertFromUtf8:= @Utf8ToSys;
-
-  FEncoding:= NormalizeEncoding(Encoding);
-  FAuto:= (FEncoding = '') or (FEncoding = 'auto');
+  FEncoding:= AValue;
 
   if FEncoding = EncodingUTF8 then
   begin
@@ -545,6 +396,232 @@ begin
     ConvertToUtf8:= @KOI8ToUTF8;
     ConvertFromUtf8:= @UTF8ToKOI8;
   end;
+end;
+
+function TFTPSendEx.Connect: Boolean;
+var
+  Option: Cardinal = 1;
+  Message: UnicodeString;
+begin
+  Result:= inherited Connect;
+  if Result then LogProc(PluginNumber, MSGTYPE_CONNECT, nil);
+  // Apply TcpKeepAlive option
+  if FTcpKeepAlive and Result then
+  begin
+    if SetSockOpt(FSock.Socket, SOL_SOCKET, SO_KEEPALIVE, @Option, SizeOf(Option)) <> 0 then
+    begin
+      Message := UTF8ToUTF16(FSock.GetErrorDesc(synsock.WSAGetLastError));
+      LogProc(PluginNumber, msgtype_importanterror, PWideChar('CSOCK ERROR ' + Message));
+    end;
+  end;
+end;
+
+function TFTPSendEx.DataSocket: Boolean;
+var
+  Message: UnicodeString;
+begin
+  Result:= inherited DataSocket;
+  if FDSock.LastError <> 0 then begin
+    Message:= UTF8ToUTF16(CeSysToUtf8(FDSock.LastErrorDesc));
+    LogProc(PluginNumber, msgtype_importanterror, PWideChar('DSOCK ERROR ' + Message));
+  end;
+end;
+
+function TFTPSendEx.ListMachine(Directory: String): Boolean;
+var
+  v: String;
+  s, x, y: Integer;
+  flr: TFTPListRecEx;
+  pdir, pcdir: Boolean;
+  option, value: String;
+begin
+  FFTPList.Clear;
+  Result := False;
+  FDataStream.Clear;
+  if Directory <> '' then
+    Directory := ' ' + Directory;
+  FTPCommand('TYPE A');
+  if not DataSocket then Exit;
+  x := FTPCommand('MLSD' + Directory);
+  if (x div 100) <> 1 then Exit;
+  Result := DataRead(FDataStream);
+  if Result then
+  begin
+    pdir := False;
+    FDataStream.Position := 0;
+    FFTPList.Lines.LoadFromStream(FDataStream);
+    for x:= 0 to FFTPList.Lines.Count - 1 do
+    begin
+      s:= 1;
+      flr := TFTPListRecEx.Create;
+      v:= FFTPList.Lines[x];
+      flr.OriginalLine:= v;
+      // DoStatus(True, v);
+      for y:= 1 to Length(v) do
+      begin
+        if v[y] = '=' then
+        begin
+          option:= LowerCase(Copy(v, s, y - s));
+          s:= y + 1;
+        end
+        else if v[y] = ';' then
+        begin
+          value:= LowerCase(Copy(v, s, y - s));
+          if (option = 'type') then
+          begin
+            // Skip 'cdir' entry
+            if (value = 'cdir') then
+            begin
+              FreeAndNil(flr);
+              Break;
+            end;
+            // Parent directory entry
+            pcdir := (value = 'pdir');
+            if pcdir then
+            begin
+              // Skip duplicate 'pdir' entry
+              if pdir then
+              begin
+                FreeAndNil(flr);
+                Break;
+              end;
+              pdir := True;
+            end;
+            flr.Directory:= pcdir or (value = 'dir');
+          end
+          else if (option = 'modify') then
+          begin
+            flr.FileTime:= DecodeMachineTime(value);
+          end
+          else if (option = 'size') then
+          begin
+            flr.FileSize:= StrToInt64Def(value, 0);
+          end
+          else if (option = 'unix.mode') then
+          begin
+            flr.Mode:= OctToDec(value);
+          end;
+          if (y < Length(v)) and (v[y + 1] = ' ') then
+          begin
+            if (flr.Directory and pcdir) then
+              flr.FileName:= '..'
+            else
+              flr.FileName:= SeparateLeft(Copy(v, y + 2, MaxInt), ' -> ');
+            Break;
+          end;
+          s:= y + 1;
+        end;
+      end;
+      if Assigned(flr) then FFTPList.List.Add(flr);
+    end;
+  end;
+  FDataStream.Position := 0;
+end;
+
+procedure TFTPSendEx.DoStatus(Response: Boolean; const Value: string);
+var
+  Index: Integer;
+  Message: UnicodeString;
+begin
+  Index:= Pos('PASS ', Value);
+  if Index = 0 then
+    Message:= ServerToClient(Value)
+  else begin
+    Message:= ServerToClient(Copy(Value, 1, Index + 4)) + '********';
+  end;
+  LogProc(PluginNumber, msgtype_details, PWideChar(Message));
+  if FSock.LastError <> 0 then begin
+    Message:= UTF8ToUTF16(CeSysToUtf8(FSock.LastErrorDesc));
+    LogProc(PluginNumber, msgtype_importanterror, PWideChar('CSOCK ERROR ' + Message));
+  end;
+end;
+
+procedure TFTPSendEx.OnSocketStatus(Sender: TObject; Reason: THookSocketReason; const Value: String);
+begin
+  if (Reason in [HR_Error]) and (Length(Value) > 0) then
+    LogProc(PluginNumber, msgtype_importanterror, PWideChar(ServerToClient(Value)));
+end;
+
+function TFTPSendEx.ClientToServer(const Value: UnicodeString): AnsiString;
+begin
+  Result:= ConvertFromUtf8(UTF16ToUTF8(Value));
+end;
+
+function TFTPSendEx.ServerToClient(const Value: AnsiString): UnicodeString;
+begin
+  Result:= UTF8ToUTF16(ConvertToUtf8(Value));
+end;
+
+function TFTPSendEx.FsFindFirstW(const Path: String; var FindData: TWin32FindDataW): Pointer;
+begin
+  Result:= nil;
+  // Get directory listing
+  if List(Path, False) then
+  begin
+    if FtpList.Count > 0 then
+    begin
+      // Save file list
+      Result:= TFTPListEx.Create;
+      TFTPListEx(Result).Assign(FtpList);
+      FsFindNextW(Result, FindData);
+    end;
+  end;
+end;
+
+function TFTPSendEx.FsFindNextW(Handle: Pointer; var FindData: TWin32FindDataW): BOOL;
+var
+  I: Integer;
+  FtpList: TFTPListEx absolute Handle;
+begin
+  Result := False;
+  if Assigned(FtpList) then
+  begin
+    I := FtpList.FIndex;
+    if I < FtpList.Count then
+    begin
+      FillChar(FindData, SizeOf(FindData), 0);
+      StrPCopy(FindData.cFileName, ServerToClient(FtpList.Items[I].FileName));
+      FindData.dwFileAttributes := FindData.dwFileAttributes or FILE_ATTRIBUTE_UNIX_MODE;
+      if TFTPListEx(FtpList).Items[I].Directory then
+        FindData.dwFileAttributes := FindData.dwFileAttributes or FILE_ATTRIBUTE_DIRECTORY
+      else
+        begin
+          FindData.nFileSizeLow := (FtpList.Items[I].FileSize and MAXDWORD);
+          FindData.nFileSizeHigh := (FtpList.Items[I].FileSize shr $20);
+        end;
+      // set Unix permissions
+      FindData.dwReserved0 := TFTPListRecEx(FtpList.Items[I]).Mode;
+      FindData.ftLastWriteTime := TWfxFileTime(DateTimeToWinFileTime(FtpList.Items[I].FileTime));
+      Inc(FtpList.FIndex);
+      Result := True;
+    end;
+  end;
+end;
+
+function TFTPSendEx.FsFindClose(Handle: Pointer): Integer;
+begin
+  Result:= 0;
+  FreeAndNil(TFTPListEx(Handle));
+end;
+
+constructor TFTPSendEx.Create(const Encoding: String);
+begin
+  inherited Create;
+  FTimeout:= 15000;
+  FDirectFile:= True;
+
+  ConvertToUtf8:= @CeSysToUtf8;
+  ConvertFromUtf8:= @Utf8ToSys;
+
+  Sock.OnStatus:= OnSocketStatus;
+
+  FEncoding:= NormalizeEncoding(Encoding);
+  FAuto:= (FEncoding = '') or (FEncoding = 'auto');
+
+  if not FAuto then SetEncoding(FEncoding);
+
+  FFtpList.Free;
+  FFtpList:= TFTPListEx.Create;
 
   // Move mostly used UNIX format to first
   FFtpList.Masks.Exchange(0, 2);
@@ -575,10 +652,10 @@ begin
         FTPCommand('OPTS UTF8 ON');
       end;
     end;
-    if not FMachine then
+    if (not FMachine) and FShowHidden then
     begin
       if inherited List('-la', False) then
-        FShowHidden:= '-la'
+        FShowHiddenText:= '-la'
       else begin
         DoStatus(False, 'Server does not seem to support LIST -a');
       end;
@@ -603,6 +680,32 @@ begin
   AValue.UserName:= UserName;
   AValue.Password:= Password;
   AValue.KeepAliveTransfer:= KeepAliveTransfer;
+  AValue.PublicKey:= FPublicKey;
+  AValue.PrivateKey:= FPrivateKey;
+  AValue.ShowHidden:= FShowHidden;
+  AValue.TcpKeepAlive:= FTcpKeepAlive;
+
+  AValue.Sock.HTTPTunnelIP:= Sock.HTTPTunnelIP;
+  AValue.Sock.HTTPTunnelPort:= Sock.HTTPTunnelPort;
+  AValue.Sock.HTTPTunnelUser:= Sock.HTTPTunnelUser;
+  AValue.Sock.HTTPTunnelPass:= Sock.HTTPTunnelPass;
+
+  AValue.Sock.SocksIP:= Sock.SocksIP;
+  AValue.Sock.SocksType:= Sock.SocksType;
+  AValue.Sock.SocksPort:= Sock.SocksPort;
+  AValue.Sock.SocksUsername:= Sock.SocksUsername;
+  AValue.Sock.SocksPassword:= Sock.SocksPassword;
+
+  AValue.DSock.HTTPTunnelIP:= DSock.HTTPTunnelIP;
+  AValue.DSock.HTTPTunnelPort:= DSock.HTTPTunnelPort;
+  AValue.DSock.HTTPTunnelUser:= DSock.HTTPTunnelUser;
+  AValue.DSock.HTTPTunnelPass:= DSock.HTTPTunnelPass;
+
+  AValue.DSock.SocksIP:= DSock.SocksIP;
+  AValue.DSock.SocksType:= DSock.SocksType;
+  AValue.DSock.SocksPort:= DSock.SocksPort;
+  AValue.DSock.SocksUsername:= DSock.SocksUsername;
+  AValue.DSock.SocksPassword:= DSock.SocksPassword;
 end;
 
 procedure TFTPSendEx.ParseRemote(Value: string);
@@ -617,6 +720,11 @@ begin
     FDataIP:= RemoteIP;
     DoStatus(False, 'Server reports local IP -> Redirect to: ' + FDataIP);
   end;
+end;
+
+function TFTPSendEx.FileExists(const FileName: String): Boolean;
+begin
+  Result:= (Self.FileSize(FileName) >= 0);
 end;
 
 function TFTPSendEx.CreateDir(const Directory: string): Boolean;
@@ -651,7 +759,7 @@ begin
     if FMachine then
       Result:= ListMachine(EmptyStr)
     else begin
-      Result:= inherited List(FShowHidden, NameList);
+      Result:= inherited List(FShowHiddenText, NameList);
     end;
     if (Result = False) and (FSock.WaitingData > 0) then
     begin
@@ -661,7 +769,7 @@ begin
   end;
 end;
 
-function TFTPSendEx.FsSetTime(const FileName: String; LastAccessTime, LastWriteTime: PFileTime): BOOL;
+function TFTPSendEx.FsSetTime(const FileName: String; LastAccessTime, LastWriteTime: PWfxFileTime): BOOL;
 var
   Time: String;
 begin
@@ -759,7 +867,7 @@ begin
   end;
 end;
 
-function TFTPSendEx.NetworkError: Boolean;
+function TFTPSendEx.NetworkError(): Boolean;
 begin
   Result := FSock.CanRead(0);
 end;

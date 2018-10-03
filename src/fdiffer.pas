@@ -33,6 +33,13 @@ uses
 
 type
 
+  { TStatusBar }
+
+  TStatusBar = class(ComCtrls.TStatusBar)
+  protected
+    procedure InvalidatePanel(PanelIndex: Integer; PanelParts: TPanelParts); override;
+  end;
+
   { TfrmDiffer }
 
   TfrmDiffer = class(TAloneForm, IFormCommands)
@@ -249,7 +256,7 @@ type
     procedure cm_SaveRight(const Params: array of string);
   end; 
 
-procedure ShowDiffer(const FileNameLeft, FileNameRight: String; WaitData: TWaitData = nil);
+procedure ShowDiffer(const FileNameLeft, FileNameRight: String; WaitData: TWaitData = nil; Modal: Boolean = False);
 
 implementation
 
@@ -262,7 +269,7 @@ uses
 const
   HotkeysCategory = 'Differ';
 
-procedure ShowDiffer(const FileNameLeft, FileNameRight: String; WaitData: TWaitData = nil);
+procedure ShowDiffer(const FileNameLeft, FileNameRight: String; WaitData: TWaitData = nil; Modal: Boolean = False);
 begin
   with TfrmDiffer.Create(Application) do
   begin
@@ -278,8 +285,26 @@ begin
       OpenFileRight(FileNameRight);
       if actAutoCompare.Checked then actStartCompare.Execute;
     end;
-    if actBinaryCompare.Checked or (FShowIdentical = False) then ShowOnTop;
+    if actBinaryCompare.Checked or (FShowIdentical = False) then
+    begin
+      if Modal then
+        ShowModal
+      else
+        ShowOnTop;
+    end;
   end;
+end;
+
+{ TStatusBar }
+
+procedure TStatusBar.InvalidatePanel(PanelIndex: Integer; PanelParts: TPanelParts);
+begin
+  if (PanelIndex >= 0) and (ppText in PanelParts) then
+  begin
+    if Length(Panels[PanelIndex].Text) > 0 then
+      Panels[PanelIndex].Width:= Canvas.TextWidth('WW' + Panels[PanelIndex].Text);
+  end;
+  inherited InvalidatePanel(PanelIndex, PanelParts);
 end;
 
 { TfrmDiffer }
@@ -292,21 +317,29 @@ var
 begin
   if actBinaryCompare.Checked then
   begin
-    actStartCompare.Enabled := False;
-    actCancelCompare.Enabled := True;
-    actBinaryCompare.Enabled := False;
-    BinaryCompare:= TBinaryCompare.Create(BinaryViewerLeft.GetDataAdr,
-                                          BinaryViewerRight.GetDataAdr,
-                                          BinaryViewerLeft.FileSize,
-                                          BinaryViewerRight.FileSize,
-                                          BinaryDiffList);
+    if (BinaryViewerLeft.IsFileOpen and BinaryViewerRight.IsFileOpen) then
+    begin
+      actStartCompare.Enabled := False;
+      actCancelCompare.Enabled := True;
+      actBinaryCompare.Enabled := False;
+      BinaryCompare:= TBinaryCompare.Create(BinaryViewerLeft.GetDataAdr,
+                                            BinaryViewerRight.GetDataAdr,
+                                            BinaryViewerLeft.FileSize,
+                                            BinaryViewerRight.FileSize,
+                                            BinaryDiffList);
 
-    BinaryCompare.OnFinish:= @BinaryCompareFinish;
-    BinaryCompare.Start;
+      BinaryCompare.OnFinish:= @BinaryCompareFinish;
+      BinaryCompare.Start;
+    end;
   end
   else try
     Inc(ScrollLock);
     Screen.Cursor := crHourGlass;
+
+    if SynDiffEditLeft.Modified then SynDiffEditLeft.Lines.RemoveFake;
+    if SynDiffEditRight.Modified then SynDiffEditRight.Lines.RemoveFake;
+    BuildHashList(SynDiffEditLeft.Modified, SynDiffEditRight.Modified);
+
     if (Length(HashListLeft) = 0) or (Length(HashListRight) = 0) then Exit;
     actStartCompare.Enabled := False;
     actCancelCompare.Enabled := True;

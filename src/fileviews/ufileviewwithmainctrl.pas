@@ -4,7 +4,7 @@
    Base class for file views which have a main control with a list of files.
 
    Copyright (C) 2012  Przemyslaw Nagay (cobines@gmail.com)
-   Copyright (C) 2015  Alexander Koblov (alexx2000@mail.ru)
+   Copyright (C) 2015-2018  Alexander Koblov (alexx2000@mail.ru)
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -108,6 +108,9 @@ type
     tmRenameFile: TTimer;
     FMouseRename: Boolean;
     FMouseFocus: Boolean;
+{$IFNDEF LCLWIN32}
+    FMouseEnter: Boolean;
+{$ENDIF}
     procedure AfterChangePath; override;
     // Simulates releasing mouse button that started a dragging operation,
     // but was released in another window or another application.
@@ -157,10 +160,10 @@ type
        on directories during drag&drop operations.
     }
     procedure SetDropFileIndex(NewFileIndex: PtrInt);
+    function GetIconRect(FileIndex: PtrInt): TRect; virtual;
     procedure WorkerStarting(const Worker: TFileViewWorker); override;
     procedure WorkerFinished(const Worker: TFileViewWorker); override;
 
-//    procedure ShowRenameFileEdit(AFile: TFile); virtual;
     procedure ShowRenameFileEdit(AFile: TFile); virtual;
     procedure UpdateRenameFileEditPosition; virtual;abstract;
     procedure RenameSelectPart(AActionType:TRenameFileActionType); virtual;
@@ -600,6 +603,9 @@ end;
 procedure TFileViewWithMainCtrl.MainControlEnter(Sender: TObject);
 begin
   Active := True;
+{$IFNDEF LCLWIN32}
+  FMouseEnter:= ssLeft in GetKeyShiftStateEx;
+{$ENDIF}
 end;
 
 procedure TFileViewWithMainCtrl.MainControlExit(Sender: TObject);
@@ -657,9 +663,13 @@ begin
   if not AtFileList then
     Exit;
 
+{$IFDEF LCLWIN32}
   FMouseFocus:= MainControl.Focused;
-
   SetFocus;
+{$ELSE}
+  FMouseFocus := not FMouseEnter;
+  FMouseEnter := False;
+{$ENDIF}
 
   // history navigation for mice with extra buttons
   case Button of
@@ -735,8 +745,15 @@ begin
                 end;
               end;
             end;
+            // Select files/folders with a left click on their icons
+            if (gMouseSelectionIconClick > 0) and
+               (PtInRect(GetIconRect(FileIndex), Classes.Point(X, Y))) then
+            begin
+              InvertFileSelection(AFile, False);
+              DoSelectionChanged(FileIndex);
+            end
             //  If mark with left button enable
-            if (gMouseSelectionButton = 0) then
+            else if (gMouseSelectionButton = 0) then
             begin
               if not AFile.Selected then
                 MarkFiles(False);
@@ -861,6 +878,8 @@ begin
       end;
     end;
 
+  if edtRename.Visible then Exit;
+
   // A single click starts programs and opens files
   if (gMouseSingleClickStart in [1..3]) and (FMainControlMouseDown = False) and
      (Shift * [ssShift, ssAlt, ssCtrl] = []) and (not MainControl.Dragging) then
@@ -954,7 +973,7 @@ var
 begin
   HintInfo^.HintStr:= EmptyStr;
 
-  if not gShowToolTipMode then Exit;
+  if not gShowToolTip then Exit;
   if not IsFileIndexInRange(FHintFileIndex) then Exit;
 
   AFile := FFiles[FHintFileIndex];
@@ -962,8 +981,19 @@ begin
 
   HintInfo^.HintStr:= AFile.FSFile.Name;
   sHint:= GetFileInfoToolTip(FileSource, AFile.FSFile);
-  if (sHint <> EmptyStr) then begin
+  if (sHint <> EmptyStr) then
     HintInfo^.HintStr:= HintInfo^.HintStr + LineEnding + sHint;
+
+  case gToolTipHideTimeOut of
+    ttthtSystem: ;
+    tttht1Sec: HintInfo^.HideTimeout := 1000;
+    tttht2Sec: HintInfo^.HideTimeout := 2000;
+    tttht3Sec: HintInfo^.HideTimeout := 3000;
+    tttht5Sec: HintInfo^.HideTimeout := 5000;
+    tttht10Sec: HintInfo^.HideTimeout := 10000;
+    tttht30Sec: HintInfo^.HideTimeout := 30000;
+    tttht1Min: HintInfo^.HideTimeout := 60000;
+    ttthtNeverHide: HintInfo^.HideTimeout := HintInfo^.HideTimeout.MaxValue;
   end;
 end;
 
@@ -1125,6 +1155,11 @@ begin
     if IsFileIndexInRange(NewFileIndex) then
       RedrawFile(NewFileIndex);
   end;
+end;
+
+function TFileViewWithMainCtrl.GetIconRect(FileIndex: PtrInt): TRect;
+begin
+  Result:= Classes.Rect(0, 0, 0, 0);
 end;
 
 procedure TFileViewWithMainCtrl.SetFocus;
@@ -1423,118 +1458,40 @@ begin
   if not (csDestroying in ComponentState) then UpdateInfoPanel;
 end;
 
-   {
 procedure TFileViewWithMainCtrl.ShowRenameFileEdit(AFile: TFile);
 var
-  lenEdtText, lenEdtTextExt, i: Integer;
-  seperatorSet: set of AnsiChar;
+  S: String;
 begin
-  if edtRename.Visible then
-    begin
-      lenEdtText := UTF8Length(edtRename.Text);
-      lenEdtTextExt := UTF8Length(ExtractFileExt(edtRename.Text));
-      if (edtRename.SelLength = lenEdtText) then
-        begin
-          // Now all selected, change it to name-only.
-          edtRename.SelStart:= 0;
-          edtRename.SelLength:= lenEdtText - lenEdtTextExt;
-        end
-      else if (edtRename.SelStart = 0) and (edtRename.SelLength = lenEdtText - lenEdtTextExt) then
-        begin
-          // Now name-only selected, change it to ext-only.
-          edtRename.SelStart:= edtRename.SelLength + 1;
-          edtRename.SelLength:= lenEdtText - edtRename.SelStart;
-        end
-      else
-        begin
-          // Partial selection cycle.
-          seperatorSet:= [' ', '-', '_', '.'];
-          i:= edtRename.SelStart + edtRename.SelLength;
-          while true do
-          begin
-            if (edtRename.Text[UTF8CharToByteIndex(PChar(edtRename.Text), length(edtRename.Text), i)] in seperatorSet)
-              and not(edtRename.Text[UTF8CharToByteIndex(PChar(edtRename.Text), length(edtRename.Text), i+1)] in seperatorSet) then
-            begin
-              edtRename.SelStart:= i;
-              Break;
-            end;
-            inc(i);
-            if i >= lenEdtText then
-            begin
-              edtRename.SelStart:= 0;
-              Break;
-            end;
-          end;
-          i:= edtRename.SelStart + 1;
-          while true do
-          begin
-            if (i >= lenEdtText)
-                  or (edtRename.Text[UTF8CharToByteIndex(PChar(edtRename.Text), length(edtRename.Text), i+1)] in seperatorSet) then
-            begin
-              edtRename.SelLength:= i - edtRename.SelStart;
-              Break;
-            end;
-            inc(i);
-          end;
-        end;
-    end
-  else
-    begin
-      edtRename.Hint := aFile.FullPath;
-      edtRename.Text := aFile.Name;
-      edtRename.Visible := True;
-      edtRename.SetFocus;
-      if gRenameSelOnlyName and (aFile.Extension <> EmptyStr) and (aFile.Name <> EmptyStr) then
-        begin
-          {$IFDEF LCLGTK2}
-          edtRename.SelStart:=1;
-          {$ENDIF}
-          edtRename.SelStart:=0;
-          edtRename.SelLength:= UTF8Length(aFile.Name) - UTF8Length(aFile.Extension) - 1;
-        end
-      else
-        edtRename.SelectAll;
-    end;
-end;
-}
-
-procedure TFileViewWithMainCtrl.ShowRenameFileEdit(AFile: TFile);
-var
-  lenEdtText, lenEdtTextExt, i: Integer;
-  seperatorSet: set of AnsiChar;
-  ca:char;
-  s:string;
-begin
-  s:=AFile.Name;
-  FRenFile.LenFul := UTF8Length(s);
-  FRenFile.LenExt := UTF8Length(ExtractFileExt(s));
-  FRenFile.LenNam := FRenFile.LenFul-FRenFile.LenExt;
+  S:= AFile.Name;
+  FRenFile.LenFul := UTF8Length(S);
+  FRenFile.LenExt := UTF8Length(ExtractFileExt(S));
+  FRenFile.LenNam := FRenFile.LenFul - FRenFile.LenExt;
 
 
   if edtRename.Visible then
   begin
-
+    if AFile.IsDirectory or AFile.IsLinkToDirectory then Exit;
     if FRenFile.UserManualEdit then FRenFile.CylceFinished:=True;
 
     if not FRenFile.CylceFinished then
     begin
       if gRenameSelOnlyName then
       begin
-        if FRenFile.LastAction=rfatName then
+        if FRenFile.LastAction = rfatName then
            RenameSelectPart(rfatFull)
         else begin
            RenameSelectPart(rfatExt);
-           FRenFile.CylceFinished:=True;
-           exit;
+           FRenFile.CylceFinished:= True;
+           Exit;
         end;
       end else
       begin
-        if FRenFile.LastAction=rfatFull then
+        if FRenFile.LastAction = rfatFull then
            RenameSelectPart(rfatName)
         else begin
            RenameSelectPart(rfatExt);
-           FRenFile.CylceFinished:=True;
-           exit;
+           FRenFile.CylceFinished:= True;
+           Exit;
         end;
       end;
       exit;
@@ -1545,7 +1502,7 @@ begin
     if FRenFile.UserManualEdit then            // if user do something(selecting by mouse or press key) and then press F2 - extend to nearest separators
     begin
        RenameSelectPart(rfatToSeparators);
-       FRenFile.UserManualEdit:=False;
+       FRenFile.UserManualEdit:= False;
     end else                                         // else - select next sepoarated part of file
        RenameSelectPart(rfatNextSeparated);
 
@@ -1556,13 +1513,12 @@ begin
     edtRename.Visible := True;
     edtRename.SetFocus;
 
-    FRenTags:=' -_.';  // separator set
-    i:=length(FRenTags);
+    FRenTags:= ' -_.';  // separator set
 
-    FRenFile.CylceFinished:=False; // cycle of selection Name-FullName-Ext of FullName-Name-Ext, after finish this cycle will be part selection mechanism
-    if FRenFile.LenExt=0 then FRenFile.CylceFinished:=True;  // don't need cycle if no extension
+    FRenFile.CylceFinished:= False; // cycle of selection Name-FullName-Ext of FullName-Name-Ext, after finish this cycle will be part selection mechanism
+    if FRenFile.LenExt = 0 then FRenFile.CylceFinished:= True;  // don't need cycle if no extension
 
-    if gRenameSelOnlyName then
+    if gRenameSelOnlyName and not (AFile.IsDirectory or AFile.IsLinkToDirectory) then
        RenameSelectPart(rfatName)
     else
        RenameSelectPart(rfatFull);
@@ -1571,8 +1527,7 @@ end;
 
 procedure TFileViewWithMainCtrl.RenameSelectPart(AActionType: TRenameFileActionType);
 var
-  ib,ie,a:integer;
-  s:string;
+  ib,ie:integer;
 begin
   FRenFile.LastAction:=AActionType;
 
@@ -1624,14 +1579,7 @@ begin
         ib:=TagPos(FRenTags,edtRename.Text,edtRename.SelStart+edtRename.SelLength+1,False);
 
         // skip next separators if exist
-        //try
         while (ib>0)and(ib<FRenFile.LenFul)and(Pos(edtRename.Text[ib+1],FRenTags)>0)do inc(ib);
-        {
-        except
-          a:=ib;
-          s:=edtRename.Text[ib];
-        end;
-        }
 
         //UTF8FindNearestCharStart();
         if ib>=FRenFile.LenFul then

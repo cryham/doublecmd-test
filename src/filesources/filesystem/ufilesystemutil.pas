@@ -83,11 +83,15 @@ type
     FFileExistsOption: TFileSourceOperationOptionFileExists;
     FDirExistsOption: TFileSourceOperationOptionDirectoryExists;
 
+    FCurrentFile: TFile;
+    FCurrentTargetFilePath: String;
+
     AskQuestion: TAskQuestionFunction;
     AbortOperation: TAbortOperationFunction;
     CheckOperationState: TCheckOperationStateFunction;
     UpdateStatistics: TUpdateStatisticsFunction;
     AppProcessMessages: TAppProcessMessagesFunction;
+    ShowCompareFilesUI: TShowCompareFilesUIFunction;
     MoveOrCopy: TFileSystemOperationHelperMoveOrCopy;
 
     procedure ShowError(sMessage: String);
@@ -109,6 +113,7 @@ type
                        AbsoluteTargetFileName: String;
                        AllowCopyInto: Boolean;
                        AllowDelete: Boolean): TFileSourceOperationOptionDirectoryExists;
+    procedure QuestionActionHandler(Action: TFileSourceOperationUIAction);
     function FileExists(aFile: TFile;
                         var AbsoluteTargetFileName: String;
                         AllowAppend: Boolean): TFileSourceOperationOptionFileExists;
@@ -121,6 +126,8 @@ type
                        AppProcessMessagesFunction: TAppProcessMessagesFunction;
                        CheckOperationStateFunction: TCheckOperationStateFunction;
                        UpdateStatisticsFunction: TUpdateStatisticsFunction;
+                       ShowCompareFilesUIFunction: TShowCompareFilesUIFunction;
+
                        OperationThread: TThread;
                        Mode: TFileSystemOperationHelperMode;
                        TargetPath: String;
@@ -168,7 +175,7 @@ procedure FillAndCount(Files: TFiles; CountDirs: Boolean; ExcludeRootDir: Boolea
     sr: TSearchRecEx;
     aFile: TFile;
   begin
-    if FindFirstEx(srcPath + '*', faAnyFile, sr) = 0 then
+    if FindFirstEx(srcPath + '*', 0, sr) = 0 then
     begin
       repeat
         if (sr.Name='.') or (sr.Name='..') then Continue;
@@ -294,7 +301,7 @@ var
   sr: TSearchRecEx;
   aFile: TFile;
 begin
-  if FindFirstEx(srcPath + '*', faAnyFile, sr) = 0 then
+  if FindFirstEx(srcPath + '*', 0, sr) = 0 then
   begin
     repeat
       if (sr.Name = '.') or (sr.Name = '..') then Continue;
@@ -315,6 +322,7 @@ constructor TFileSystemOperationHelper.Create(
   AppProcessMessagesFunction: TAppProcessMessagesFunction;
   CheckOperationStateFunction: TCheckOperationStateFunction;
   UpdateStatisticsFunction: TUpdateStatisticsFunction;
+  ShowCompareFilesUIFunction: TShowCompareFilesUIFunction;
   OperationThread: TThread; Mode: TFileSystemOperationHelperMode;
   TargetPath: String; StartingStatistics: TFileSourceCopyOperationStatistics);
 begin
@@ -323,6 +331,7 @@ begin
   AppProcessMessages := AppProcessMessagesFunction;
   CheckOperationState := CheckOperationStateFunction;
   UpdateStatistics := UpdateStatisticsFunction;
+  ShowCompareFilesUI := ShowCompareFilesUIFunction;
 
   FOperationThread := OperationThread;
   FMode := Mode;
@@ -814,7 +823,7 @@ function TFileSystemOperationHelper.MoveFile(SourceFile: TFile; TargetFileName: 
   Mode: TFileSystemOperationHelperCopyMode): Boolean;
 var
   Message: String;
-  RetryDelete: Boolean = True;
+  RetryDelete: Boolean;
 begin
   if (Mode in [fsohcmAppend, fsohcmResume]) or
      (not mbRenameFile(SourceFile.FullPath, TargetFileName)) then
@@ -823,12 +832,12 @@ begin
     if CopyFile(SourceFile, TargetFileName, Mode) then
     begin
       repeat
+        RetryDelete := True;
         if FileIsReadOnly(SourceFile.Attributes) then
           mbFileSetReadOnly(SourceFile.FullPath, False);
         Result := mbDeleteFile(SourceFile.FullPath);
         if (not Result) and (FDeleteFileOption = fsourInvalid) then
         begin
-          RetryDelete := True;
           Message := Format(rsMsgNotDelete, [WrapTextSimple(SourceFile.FullPath, 100)]) + LineEnding + LineEnding + mbSysErrorMessage;
           case AskQuestion('', Message, [fsourSkip, fsourRetry, fsourAbort, fsourSkipAll], fsourSkip, fsourAbort) of
             fsourAbort: AbortOperation;
@@ -883,7 +892,7 @@ begin
     if mbSameFile(TargetName, aFile.FullPath) then
     begin
       if (FMode = fsohmCopy) and FAutoRenameItSelf then
-        TargetName := GetNextCopyName(TargetName)
+        TargetName := GetNextCopyName(TargetName, aFile.IsDirectory or aFile.IsLinkToDirectory)
       else
         case AskQuestion(Format(rsMsgCanNotCopyMoveItSelf, [TargetName]), '',
                          [fsourAbort, fsourSkip], fsourAbort, fsourSkip) of
@@ -927,10 +936,10 @@ begin
       end;
     end;
 
-    if aFile.IsDirectory then
-      ProcessedOk := ProcessDirectory(CurrentSubNode, TargetName)
-    else if aFile.IsLink then
+    if aFile.IsLink then
       ProcessedOk := ProcessLink(CurrentSubNode, TargetName)
+    else if aFile.IsDirectory then
+      ProcessedOk := ProcessDirectory(CurrentSubNode, TargetName)
     else
       ProcessedOk := ProcessFile(CurrentSubNode, TargetName);
 
@@ -1355,18 +1364,26 @@ begin
       Result := FDirExistsOption;
 end;
 
+procedure TFileSystemOperationHelper.QuestionActionHandler(
+  Action: TFileSourceOperationUIAction);
+begin
+  if Action = fsouaCompare then
+    ShowCompareFilesUI(FCurrentFile, FCurrentTargetFilePath);
+end;
+
 function TFileSystemOperationHelper.FileExists(aFile: TFile;
   var AbsoluteTargetFileName: String; AllowAppend: Boolean
   ): TFileSourceOperationOptionFileExists;
 const
-  Responses: array[0..11] of TFileSourceOperationUIResponse
+  Responses: array[0..12] of TFileSourceOperationUIResponse
     = (fsourOverwrite, fsourSkip, fsourRenameSource, fsourOverwriteAll,
-       fsourSkipAll, fsourResume, fsourOverwriteOlder, fsourCancel, fsourAppend,
-       fsourOverwriteSmaller, fsourOverwriteLarger, fsourAutoRenameSource);
-  ResponsesNoAppend: array[0..9] of TFileSourceOperationUIResponse
+       fsourSkipAll, fsourResume, fsourOverwriteOlder, fsourCancel,
+       fsouaCompare, fsourAppend, fsourOverwriteSmaller, fsourOverwriteLarger,
+       fsourAutoRenameSource);
+  ResponsesNoAppend: array[0..10] of TFileSourceOperationUIResponse
     = (fsourOverwrite, fsourSkip, fsourRenameSource,  fsourOverwriteAll,
        fsourSkipAll, fsourOverwriteSmaller, fsourOverwriteOlder, fsourCancel,
-       fsourOverwriteLarger, fsourAutoRenameSource);
+       fsouaCompare, fsourOverwriteLarger, fsourAutoRenameSource);
 var
   Answer: Boolean;
   Message: String;
@@ -1407,8 +1424,11 @@ begin
         end;
         Message:= FileExistsMessage(AbsoluteTargetFileName, aFile.FullPath,
                                     aFile.Size, aFile.ModificationTime);
+        FCurrentFile := aFile;
+        FCurrentTargetFilePath := AbsoluteTargetFileName;
         case AskQuestion(Message, '',
-                         PossibleResponses, fsourOverwrite, fsourSkip) of
+                         PossibleResponses, fsourOverwrite, fsourSkip,
+                         @QuestionActionHandler) of
           fsourOverwrite:
             Result := fsoofeOverwrite;
           fsourSkip:
@@ -1451,7 +1471,7 @@ begin
             begin
               Result:= fsoofeAutoRenameSource;
               FFileExistsOption:= fsoofeAutoRenameSource;
-              AbsoluteTargetFileName:= GetNextCopyName(AbsoluteTargetFileName);
+              AbsoluteTargetFileName:= GetNextCopyName(AbsoluteTargetFileName, aFile.IsDirectory or aFile.IsLinkToDirectory);
             end;
           fsourRenameSource:
             begin
@@ -1483,7 +1503,7 @@ begin
     fsoofeAutoRenameSource:
       begin
         Result:= fsoofeAutoRenameSource;
-        AbsoluteTargetFileName:= GetNextCopyName(AbsoluteTargetFileName);
+        AbsoluteTargetFileName:= GetNextCopyName(AbsoluteTargetFileName, aFile.IsDirectory or aFile.IsLinkToDirectory);
       end;
 
     else

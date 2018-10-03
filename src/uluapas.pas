@@ -3,7 +3,7 @@
    -------------------------------------------------------------------------
    Push some useful functions to Lua
 
-   Copyright (C) 2016-2017 Alexander Koblov (alexx2000@mail.ru)
+   Copyright (C) 2016-2018 Alexander Koblov (alexx2000@mail.ru)
 
    This library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -27,7 +27,7 @@ unit uLuaPas;
 interface
 
 uses
-  Classes, SysUtils, lua;
+  Classes, SysUtils, Lua;
 
 procedure RegisterPackages(L : Plua_State);
 procedure SetPackagePath(L: Plua_State; const Path: String);
@@ -37,197 +37,82 @@ function ExecuteScript(const FileName: String; Args: array of String): Boolean;
 implementation
 
 uses
-  Forms, Dialogs, Clipbrd, LazUTF8, LCLVersion, CTypes, DCOSUtils, DCBasicTypes,
-  DCConvertEncoding, fMain, uFormCommands, uOSUtils, uGlobs, uLog, uMicroLibC,
-  uClipboard, uShowMsg;
+  Forms, Dialogs, Clipbrd, LazUTF8, LCLVersion, DCOSUtils,
+  DCConvertEncoding, fMain, uFormCommands, uOSUtils, uGlobs, uLog,
+  uClipboard, uShowMsg, uLuaStd, uFindEx;
 
-function tofilep(L: Plua_State): PPointer; inline;
+procedure luaPushSearchRec(L : Plua_State; Rec: PSearchRecEx);
 begin
-  Result:= PPointer(luaL_checkudata(L, 1, LUA_FILEHANDLE))
-end;
-
-function tofile(L: Plua_State): Pointer;
-var
-  f: PPointer;
-begin
-  f := tofilep(L);
-  if (f^ = nil) then
-    luaL_error(L, 'attempt to use a closed file');
-  Result := f^;
-end;
-
-function os_pushresult(L: Plua_State; i: Boolean; const filename: PAnsiChar): cint;
-var
-  en: cint;
-begin
-  en := GetLastOSError;  //* calls to Lua API may change this value */
-  if (i) then begin
-    lua_pushboolean(L, true);
-    Result:= 1;
-  end
-  else begin
-    lua_pushnil(L);
-    lua_pushfstring(L, '%s: %s', filename, PAnsiChar(mbSysErrorMessage(en)));
-    lua_pushinteger(L, en);
-    Result:= 3;
-  end;
-end;
-
-function pushresult(L: Plua_State; i: Boolean; const filename: PAnsiChar): cint;
-var
-  en: cint;
-begin
-  en := cerrno;  //* calls to Lua API may change this value */
-  if (i) then begin
-    lua_pushboolean(L, true);
-    Result:= 1;
-  end
-  else begin
-    lua_pushnil(L);
-    if Assigned(filename) then
-      lua_pushfstring(L, '%s: %s', filename, cstrerror(en))
-    else
-      lua_pushfstring(L, '%s', cstrerror(en));
-    lua_pushinteger(L, en);
-    Result:= 3;
-  end;
-end;
-
-function newfile(L: Plua_State): PPointer; cdecl;
-begin
-  Result := PPointer(lua_newuserdata(L, SizeOf(Pointer)));
-  Result^ := nil;  //* file handle is currently `closed' */
-  luaL_getmetatable(L, LUA_FILEHANDLE);
-  lua_setmetatable(L, -2);
-end;
-
-function io_open(L: Plua_State): Integer; cdecl;
-var
-  pf: PPointer;
-  filename, mode: PAnsiChar;
-begin
-  filename := luaL_checkstring(L, 1);
-  mode := luaL_optstring(L, 2, 'r');
-  pf := newfile(L);
-  pf^ := cfopen(filename, mode);
-  if (pf^ <> nil) then
-    Result := 1
-  else begin
-    Result := pushresult(L, False, filename);
-  end;
-end;
-
-function io_lines(L: Plua_State): Integer; cdecl;
-const
-  IO_INPUT = 1;
-var
-  pf: PPointer;
-  filename: PAnsiChar;
-  f_lines: lua_CFunction;
-begin
-  // Get f_lines C function
-  luaL_getmetatable(L, LUA_FILEHANDLE);
-    lua_getfield(L, -1, 'lines');
-    f_lines := lua_tocfunction(L, -1);
-  lua_pop(L, 2);
-  //* no arguments? */
-  if (lua_isnoneornil(L, 1)) then
-  begin
-    //* will iterate over default input */
-    lua_rawgeti(L, LUA_ENVIRONINDEX, IO_INPUT);
-    Result := f_lines(L);
-  end
-  else begin
-    filename := luaL_checkstring(L, 1);
-    pf := newfile(L);
-    pf^ := cfopen(filename, 'r');
-    if (pf^ = nil) then begin
-      lua_pushfstring(L, '%s: %s', filename, cstrerror(cerrno));
-      luaL_argerror(L, 1, lua_tostring(L, -1));
-    end;
-    lua_replace(L, 1);
-    Result := f_lines(L);
-  end;
-end;
-
-function io_popen(L: Plua_State): Integer; cdecl;
-var
-  pf: PPointer;
-  filename, mode: PAnsiChar;
-begin
-  filename := luaL_checkstring(L, 1);
-  mode := luaL_optstring(L, 2, 'r');
-  pf := newfile(L);
-  pf^ := cpopen(filename, mode);
-  if (pf^ <> nil) then
-    Result := 1
-  else begin
-    Result := pushresult(L, False, filename);
-  end;
-end;
-
-procedure luaPushSearchRec(L : Plua_State; var Rec: TSearchRec);
-var
-  FindHandle: PtrInt absolute Rec.FindHandle;
-begin
-  lua_pushinteger(L, FindHandle);
+  lua_pushlightuserdata(L, Rec);
   lua_newtable(L);
-  lua_pushinteger(L, Rec.Time);
+  lua_pushinteger(L, Rec^.Time);
   lua_setfield(L, -2, 'Time');
-  lua_pushinteger(L, Rec.Size);
+  lua_pushinteger(L, Rec^.Size);
   lua_setfield(L, -2, 'Size');
-  lua_pushinteger(L, Rec.Attr);
+  lua_pushinteger(L, Rec^.Attr);
   lua_setfield(L, -2, 'Attr');
-  lua_pushstring(L, PAnsiChar(Rec.Name));
+  lua_pushstring(L, PAnsiChar(Rec^.Name));
   lua_setfield(L, -2, 'Name');
 end;
 
 function luaFindFirst(L : Plua_State) : Integer; cdecl;
 var
   Path: String;
-  Rec: TSearchRec;
+  Rec: PSearchRecEx;
 begin
-  Result:= 2;
-  Path:= String(mbFileNameToNative(lua_tostring(L, 1)));
-  if FindFirst(Path, faAnyFile, Rec) = 0 then
-    luaPushSearchRec(L, Rec)
+  New(Rec);
+  Path:= lua_tostring(L, 1);
+  if FindFirstEx(Path, fffPortable, Rec^) = 0 then
+  begin
+    Result:= 2;
+    luaPushSearchRec(L, Rec);
+  end
   else begin
-    lua_pushnil(L);
+    Result:= 1;
+    Dispose(Rec);
     lua_pushnil(L);
   end;
 end;
 
 function luaFindNext(L : Plua_State) : Integer; cdecl;
 var
-  Rec: TSearchRec;
-  FindHandle: PtrInt absolute Rec.FindHandle;
+  Rec: PSearchRecEx;
 begin
-  Result:= 2;
-  FillChar({%H-}Rec, SizeOf(TSearchRec), 0);
-  FindHandle:= PtrInt(lua_tointeger(L, 1));
-  if FindNext(Rec) = 0 then
-    luaPushSearchRec(L, Rec)
+  Rec:= lua_touserdata(L, 1);
+  if (Rec <> nil) and (FindNextEx(Rec^) = 0) then
+  begin
+    Result:= 2;
+    luaPushSearchRec(L, Rec);
+  end
   else begin
     lua_pushnil(L);
-    lua_pushnil(L);
+    Result:= 1;
   end;
 end;
 
 function luaFindClose(L : Plua_State) : Integer; cdecl;
 var
-  Rec: TSearchRec;
-  FindHandle: PtrInt absolute Rec.FindHandle;
+  Rec: PSearchRecEx;
 begin
+  Rec:= lua_touserdata(L, 1);
+  if Assigned(Rec) then
+  begin
+    FindCloseEx(Rec^);
+    Dispose(Rec);
+  end;
   Result:= 0;
-  FillChar({%H-}Rec, SizeOf(TSearchRec), 0);
-  FindHandle:= PtrInt(lua_tointeger(L, 1));
-  FindClose(Rec);
 end;
 
 function luaSleep(L : Plua_State) : Integer; cdecl;
 begin
   Result:= 0;
   Sleep(lua_tointeger(L, 1));
+end;
+
+function luaGetTickCount(L : Plua_State) : Integer; cdecl;
+begin
+  Result:= 1;
+  lua_pushinteger(L, GetTickCount64);
 end;
 
 function luaFileGetAttr(L : Plua_State) : Integer; cdecl;
@@ -246,6 +131,59 @@ function luaDirectoryExists(L : Plua_State) : Integer; cdecl;
 begin
   Result:= 1;
   lua_pushboolean(L, mbDirectoryExists(lua_tostring(L, 1)));
+end;
+
+function luaPos(L : Plua_State) : Integer; cdecl;
+var
+  Offset: SizeInt = 1;
+  Search, Source: String;
+begin
+  Result:= 1;
+  Search:= lua_tostring(L, 1);
+  Source:= lua_tostring(L, 2);
+  if lua_isinteger(L, 3) then begin
+    Offset:= lua_tointeger(L, 3)
+  end;
+  lua_pushinteger(L, UTF8Pos(Search, Source, Offset));
+end;
+
+function luaCopy(L : Plua_State) : Integer; cdecl;
+var
+  S: String;
+  Start, Count: PtrInt;
+begin
+  Result:= 1;
+  S:= lua_tostring(L, 1);
+  Start:= lua_tointeger(L, 2);
+  Count:= lua_tointeger(L, 3);
+  S:= UTF8Copy(S, Start, Count);
+  lua_pushstring(L, PAnsiChar(S));
+end;
+
+function luaLength(L : Plua_State) : Integer; cdecl;
+begin
+  Result:= 1;
+  lua_pushinteger(L, UTF8Length(lua_tostring(L, 1)));
+end;
+
+function luaUpperCase(L : Plua_State) : Integer; cdecl;
+var
+  S: String;
+begin
+  Result:= 1;
+  S:= lua_tostring(L, 1);
+  S:= UTF8UpperCase(S);
+  lua_pushstring(L, PAnsiChar(S));
+end;
+
+function luaLowerCase(L : Plua_State) : Integer; cdecl;
+var
+  S: String;
+begin
+  Result:= 1;
+  S:= lua_tostring(L, 1);
+  S:= UTF8LowerCase(S);
+  lua_pushstring(L, PAnsiChar(S));
 end;
 
 function luaClipbrdClear(L : Plua_State) : Integer; cdecl;
@@ -307,56 +245,38 @@ begin
   end;
 end;
 
-function luaGetEnvironmentVariable(L : Plua_State) : Integer; cdecl;
+function luaInputListBox(L : Plua_State) : Integer; cdecl;
 var
-  AValue: String;
+  AValue: String = '';
+  AIndex, ACount: Integer;
+  AStringList: TStringList;
+  APrompt, ACaption: PAnsiChar;
 begin
   Result:= 1;
-  AValue:= mbGetEnvironmentVariable(luaL_checkstring(L, 1));
-  if (Length(AValue) = 0) then
-    lua_pushnil(L)
-  else begin
-    lua_pushstring(L, PAnsiChar(AValue));
+  if (lua_gettop(L) < 3) or (not lua_istable(L, 3)) then
+  begin
+    lua_pushnil(L);
+    Exit;
   end;
-end;
-
-function luaExecute(L: Plua_State): Integer; cdecl;
-begin
-  Result:= 1;
-  lua_pushinteger(L, csystem(luaL_optstring(L, 1, nil)));
-end;
-
-function luaRemove(L: Plua_State): Integer; cdecl;
-var
-  ok: Boolean;
-  attr: TFileAttrs;
-  filename: PAnsiChar;
-begin
-  filename := luaL_checkstring(L, 1);
-  attr:= mbFileGetAttr(filename);
-  if (attr = faInvalidAttributes) then
-    ok:= True
-  else if FPS_ISDIR(attr) then
-    ok:= mbRemoveDir(filename)
-  else begin
-    ok:= mbDeleteFile(filename);
+  ACaption:= lua_tostring(L, 1);
+  APrompt:= lua_tostring(L, 2);
+  ACount:= lua_objlen(L, 3);
+  AStringList:= TStringList.Create;
+  for AIndex := 1 to ACount do
+  begin
+    lua_rawgeti(L, 3, AIndex);
+    AStringList.Add(luaL_checkstring(L, -1));
+    lua_pop(L, 1);
   end;
-  Result:= os_pushresult(L, ok, filename);
-end;
-
-function luaRenameFile(L: Plua_State): Integer; cdecl;
-var
-  oldname, newname: PAnsiChar;
-begin
-  oldname := luaL_checkstring(L, 1);
-  newname := luaL_checkstring(L, 2);
-  Result:= os_pushresult(L, mbRenameFile(oldname, newname), oldname);
-end;
-
-function luaTempName(L: Plua_State): Integer; cdecl;
-begin
-  Result:= 1;
-  lua_pushstring(L, PAnsiChar(GetTempName(EmptyStr)));
+  if lua_isstring(L, 4) then begin
+    AValue:= lua_tostring(L, 4);
+  end;
+  if ShowInputListBox(ACaption, APrompt, AStringList, AValue, AIndex) then
+    lua_pushstring(L, PAnsiChar(AValue))
+  else begin
+    lua_pushnil(L);
+  end;
+  AStringList.Free;
 end;
 
 function luaExecuteCommand(L : Plua_State) : Integer; cdecl;
@@ -397,38 +317,6 @@ begin
   lua_setfield(L, -2, n);
 end;
 
-procedure luaP_copyfenv(L: Plua_State; Idx: Integer; N: PAnsiChar);
-begin
-  lua_getfield(L, -2, N);
-  lua_getfenv(L, Idx);
-  lua_setfenv(L, -2);
-  lua_pop(L, 1);
-end;
-
-procedure ReplaceLib(L: Plua_State);
-var
-  Index: Integer;
-begin
-  // Get 'popen' environment
-  lua_getglobal(L, LUA_IOLIBNAME);
-    lua_getfield(L, -1, 'popen');
-  lua_replace(L, 1);
-
-  // Replace 'io' library functions
-  lua_getglobal(L, LUA_IOLIBNAME);
-    luaP_register(L, 'open', @io_open);
-    luaP_register(L, 'lines', @io_lines);
-    luaP_register(L, 'popen', @io_popen);
-    // Get 'close' environment
-    lua_getfield(L, -1, 'close');
-    Index:= lua_gettop(L);
-    // Set correct environment
-    luaP_copyfenv(L, 1, 'popen');
-    luaP_copyfenv(L, Index, 'open');
-    luaP_copyfenv(L, Index, 'lines');
-  lua_pop(L, 3);
-end;
-
 procedure RegisterPackages(L: Plua_State);
 begin
   lua_newtable(L);
@@ -438,9 +326,18 @@ begin
     luaP_register(L, 'FindClose', @luaFindClose);
     luaP_register(L, 'FileExists', @luaFileExists);
     luaP_register(L, 'FileGetAttr', @luaFileGetAttr);
+    luaP_register(L, 'GetTickCount', @luaGetTickCount);
     luaP_register(L, 'DirectoryExists', @luaDirectoryExists);
     luaC_register(L, 'PathDelim', PathDelim);
   lua_setglobal(L, 'SysUtils');
+
+  lua_newtable(L);
+    luaP_register(L, 'Pos', @luaPos);
+    luaP_register(L, 'Copy', @luaCopy);
+    luaP_register(L, 'Length', @luaLength);
+    luaP_register(L, 'UpperCase', @luaUpperCase);
+    luaP_register(L, 'LowerCase', @luaLowerCase);
+  lua_setglobal(L, 'LazUtf8');
 
   lua_newtable(L);
     luaP_register(L, 'Clear', @luaClipbrdClear);
@@ -454,21 +351,14 @@ begin
   lua_newtable(L);
     luaP_register(L, 'MessageBox', @luaMessageBox);
     luaP_register(L, 'InputQuery', @luaInputQuery);
+    luaP_register(L, 'InputListBox', @luaInputListBox);
   lua_setglobal(L, 'Dialogs');
 
   lua_newtable(L);
     luaP_register(L, 'ExecuteCommand', @luaExecuteCommand);
   lua_setglobal(L, 'DC');
 
-  lua_getglobal(L, LUA_OSLIBNAME);
-    luaP_register(L, 'remove', @luaRemove);
-    luaP_register(L, 'execute', @luaExecute);
-    luaP_register(L, 'tmpname', @luaTempName);
-    luaP_register(L, 'rename', @luaRenameFile);
-    luaP_register(L, 'getenv', @luaGetEnvironmentVariable);
-  lua_pop(L, 1);
-
-  if not luaJIT then ReplaceLib(L);
+  ReplaceLibrary(L);
 end;
 
 procedure SetPackagePath(L: Plua_State; const Path: String);
@@ -522,29 +412,26 @@ begin
     luaL_openlibs(L);
     RegisterPackages(L);
 
-    // Push arguments
-    Count:= Length(Args);
-    if (Count > 0) then
-    begin
-      for Index := 0 to Count - 1 do begin
-        lua_pushstring(L, PAnsiChar(Args[Index]));
-      end;
-      lua_createtable(L, Count, 0);
-      lua_setglobal(L, 'arg');
-    end;
-
-    // Execute script
+    // Load script from file
     Status := luaL_loadfile(L, PAnsiChar(Script));
-    lua_insert(L, -(Count + 1));
     if (Status = 0) then
+    begin
+      // Push arguments
+      Count:= Length(Args);
+      if (Count > 0) then
+      begin
+        for Index := 0 to Count - 1 do begin
+          lua_pushstring(L, PAnsiChar(Args[Index]));
+        end;
+      end;
+      // Execute script
       Status := lua_pcall(L, Count, 0, 0)
-    else begin
-      lua_pop(L, Count);
     end;
 
     // Check execution result
     if Status <> 0 then begin
-      MessageDlg(lua_tostring(L, -1), mtError, [mbOK], 0);
+      Script:= StrPas(lua_tostring(L, -1));
+      MessageDlg(Script, mtError, [mbOK], 0);
     end;
 
     lua_close(L);

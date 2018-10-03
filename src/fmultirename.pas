@@ -8,7 +8,7 @@
 
    contributors:
 
-   Copyright (C) 2007-2014  Koblov Alexander (Alexx2000@mail.ru)
+   Copyright (C) 2007-2018 Alexander Koblov (alexx2000@mail.ru)
 }
 
 unit fMultiRename;
@@ -18,10 +18,10 @@ unit fMultiRename;
 interface
 
 uses
-  LazUtf8, SysUtils, Classes, Graphics, Forms, StdCtrls, Menus, RegExpr,
+  LazUtf8, SysUtils, Classes, Graphics, Forms, StdCtrls, Menus,
   Controls, LCLType, DCClassesUtf8, uClassesEx, uFile, uFileSource,
   StringHashList, Grids, ExtCtrls, Buttons, DCXmlConfig, uOSForms,
-  uFileProperty, uFileSourceSetFilePropertyOperation;
+  uRegExprW, uFileProperty, uFileSourceSetFilePropertyOperation;
 
 type
 
@@ -120,6 +120,7 @@ type
     procedure cbRegExpChange(Sender: TObject);
     procedure cmbNameStyleChange(Sender: TObject);
     procedure KeyDownHandler(Sender: TObject; var Key: Word; Shift: TShiftState);
+    procedure edFindChange(Sender: TObject);
     procedure mnuEditNamesClick(Sender: TObject);
     procedure mnuLoadFromFileClick(Sender: TObject);
     procedure OnSelect(Sender: TObject);
@@ -432,7 +433,7 @@ begin
   // Find and replace
   if cbRegExp.Checked and (edFind.Text <> '') then
     try
-      Result:= ReplaceRegExpr(edFind.Text, Result, edReplace.Text, cbUseSubs.Checked);
+      //Result:= UTF16ToUTF8(FRegExp.Replace(UTF8Decode(Result), UTF8Decode(edReplace.Text), cbUseSubs.Checked));
     except
       Result:= rsMsgErrRegExpSyntax;
       bError:= True;
@@ -483,6 +484,14 @@ begin
       begin
       end;}
   end;
+end;
+
+procedure TfrmMultiRename.edFindChange(Sender: TObject);
+begin
+  if cbRegExp.Checked then begin
+    //FRegExp.Expression:= UTF8Decode(edFind.Text);
+  end;
+  StringGridTopLeftChanged(StringGrid);
 end;
 
 procedure TfrmMultiRename.LoadNamesFromFile(const AFileName: String);
@@ -642,7 +651,8 @@ begin
       cbUseSubs.Checked:= False;
     end;
   cbUseSubs.Enabled:= cbRegExp.Checked;
-  StringGridTopLeftChanged(StringGrid);
+  edFindChange(edFind);
+  //StringGridTopLeftChanged(StringGrid);
 end;
 
 procedure TfrmMultiRename.btnLoadPresetClick(Sender: TObject);
@@ -1282,7 +1292,8 @@ begin
 
     FLastPreset := PresetName;
 
-    StringGridTopLeftChanged(StringGrid);
+    edFindChange(edFind);
+    //StringGridTopLeftChanged(StringGrid);
   end;
 end;
 

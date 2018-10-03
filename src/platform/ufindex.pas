@@ -1,9 +1,9 @@
 {
     Double Commander
     -------------------------------------------------------------------------
-    This unit contains UTF8 versions of Find(First, Next, Close) functions
+    This unit contains UTF-8 versions of Find(First, Next, Close) functions
 
-    Copyright (C) 2006-2016 Alexander Koblov (alexx2000@mail.ru)
+    Copyright (C) 2006-2018 Alexander Koblov (alexx2000@mail.ru)
 
     This library is free software; you can redistribute it and/or
     modify it under the terms of the GNU Lesser General Public
@@ -39,24 +39,27 @@ uses
   {$ENDIF}
   ;
 
+const
+  fffPortable = $80000000;
+
 type
 {$IFDEF UNIX}
   TUnixFindData = record
-    DirPtr: PDir;   //en> directory pointer for reading directory
-    sPath: String;  //en> file name path
-    Mask: TMask;    //en> object that will check mask
-    StatRec: Stat;
+    DirPtr: PDir;      //en> directory pointer for reading directory
+    FindPath: String;  //en> file name path
+    Mask: TMask;       //en> object that will check mask
+    StatRec: Stat;     //en> Unix stat record
   end;
   PUnixFindData = ^TUnixFindData;
 {$ENDIF}
 
   PSearchRecEx = ^TSearchRecEx;
-  TSearchRecEx = Record
+  TSearchRecEx = record
     Time : DCBasicTypes.TFileTime;  // modification time
     Size : Int64;
     Attr : TFileAttrs;
     Name : String;
-    ExcludeAttr : TFileAttrs;
+    Flags : UInt32;
 {$ifdef unix}
     FindHandle : Pointer;
 {$else unix}
@@ -67,8 +70,8 @@ type
 {$endif}
   end;
 
-function FindFirstEx (const Path : String; Attr : TFileAttrs; out SearchRec : TSearchRecEx) : Longint;
-function FindNextEx (var SearchRec : TSearchRecEx) : Longint;
+function FindFirstEx(const Path: String; Flags: UInt32; out SearchRec: TSearchRecEx): Integer;
+function FindNextEx(var SearchRec: TSearchRecEx): Integer;
 procedure FindCloseEx(var SearchRec: TSearchRecEx);
 
 implementation
@@ -76,14 +79,11 @@ implementation
 uses
   LazUTF8, uDebug
   {$IFDEF MSWINDOWS}
-  , DCWindows, uMyWindows
+  , DCWindows, DCDateTimeUtils, uMyWindows
   {$ENDIF}
   {$IFDEF UNIX}
   , Unix, DCOSUtils, DCFileAttributes, DCConvertEncoding, uMyUnix
   {$ENDIF};
-
-const
-  faSpecial = faVolumeID or faDirectory;
 
 {$IF DEFINED(LINUX)}
   function fpOpenDir(dirname: PAnsiChar): pDir; cdecl; external libc name 'opendir';
@@ -96,74 +96,76 @@ function mbFindMatchingFile(var SearchRec: TSearchRecEx): Integer;
 begin
   with SearchRec do
   begin
-    while (FindData.dwFileAttributes and ExcludeAttr) <> 0 do
-      if not FindNextFileW(FindHandle, FindData) then Exit(GetLastError);
-
+    if (Flags and fffPortable = 0) then
+      Time:= TWinFileTime(FindData.ftLastWriteTime)
+    else begin
+      Time:= WinFileTimeToUnixTime(TWinFileTime(FindData.ftLastWriteTime));
+    end;
     FindData.dwFileAttributes:= ExtractFileAttributes(FindData);
-
-    Time:= TWinFileTime(FindData.ftLastWriteTime);
     Size:= (Int64(FindData.nFileSizeHigh) shl 32) + FindData.nFileSizeLow;
-    Attr:= FindData.dwFileAttributes;
     Name:= UTF16ToUTF8(UnicodeString(FindData.cFileName));
+    Attr:= FindData.dwFileAttributes;
   end;
   Result:= 0;
 end;
 {$ELSE}
 var
-  UnixFindData: PUnixFindData;
-  WinAttr: LongInt;
+  UnixFindData: PUnixFindData absolute SearchRec.FindHandle;
 begin
   Result:= -1;
-  UnixFindData:= PUnixFindData(SearchRec.FindHandle);
   if UnixFindData = nil then Exit;
-  if not Assigned(UnixFindData^.Mask) or
-     UnixFindData^.Mask.Matches(SearchRec.Name) then
+  if (UnixFindData^.Mask = nil) or UnixFindData^.Mask.Matches(SearchRec.Name) then
+  begin
+    if fpLStat(UTF8ToSys(UnixFindData^.FindPath + SearchRec.Name), @UnixFindData^.StatRec) >= 0 then
     begin
-      if fpLStat(UTF8ToSys(UnixFindData^.sPath + SearchRec.Name), @UnixFindData^.StatRec) >= 0 then
+      with UnixFindData^.StatRec do
       begin
-        with UnixFindData^.StatRec do
-        begin
-          WinAttr:= UnixToWinFileAttr(SearchRec.Name, TFileAttrs(UnixFindData^.StatRec.st_mode));
-          if (WinAttr and SearchRec.ExcludeAttr) <> 0 then Exit;
-          SearchRec.Size:= Int64(st_size);
-          SearchRec.Time:= DCBasicTypes.TFileTime(st_mtime);
-          SearchRec.Attr:= DCBasicTypes.TFileAttrs(st_mode);
+        SearchRec.Size:= Int64(st_size);
+        SearchRec.Time:= DCBasicTypes.TFileTime(st_mtime);
+        if (SearchRec.Flags and fffPortable = 0) then
+          SearchRec.Attr:= DCBasicTypes.TFileAttrs(st_mode)
+        else begin
+          SearchRec.Attr:= UnixToWinFileAttr(SearchRec.Name, TFileAttrs(st_mode));
         end;
-        Result:= 0;
       end;
+      Result:= 0;
     end;
+  end;
 end;
 {$ENDIF}
 
-function FindFirstEx (const Path : String; Attr : TFileAttrs; out SearchRec : TSearchRecEx) : Longint;
+function FindFirstEx(const Path: String; Flags: UInt32; out SearchRec: TSearchRecEx): Integer;
 {$IFDEF MSWINDOWS}
 var
-  wPath: UnicodeString;
+  wsPath: UnicodeString;
 begin
-  wPath:= UTF16LongName(Path);
-  SearchRec.ExcludeAttr:= not Attr and faSpecial;
-  SearchRec.FindHandle:= FindFirstFileW(PWideChar(wPath), SearchRec.FindData);
-  // if error then exit
-  if SearchRec.FindHandle = INVALID_HANDLE_VALUE then Exit(GetLastError);
-  Result:= mbFindMatchingFile(SearchRec);
+  SearchRec.Flags:= Flags;
+  wsPath:= UTF16LongName(Path);
+  SearchRec.FindHandle:= FindFirstFileW(PWideChar(wsPath), SearchRec.FindData);
+
+  if SearchRec.FindHandle = INVALID_HANDLE_VALUE then
+    Result:= GetLastError
+  else begin
+    Result:= mbFindMatchingFile(SearchRec);
+  end;
 end;
 {$ELSE}
 var
   UnixFindData: PUnixFindData;
 begin
-  //DCDebug('FindFirstEx with Path == ', Path);
-  { Allocate UnixFindData }
   New(UnixFindData);
-  FillChar(UnixFindData^, SizeOf(UnixFindData^), 0);
+
+  SearchRec.Flags:= Flags;
   SearchRec.FindHandle:= UnixFindData;
-  SearchRec.ExcludeAttr:= not Attr and faSpecial;
+  FillChar(UnixFindData^, SizeOf(TUnixFindData), 0);
 
   with UnixFindData^ do
   begin
-    sPath:= ExtractFileDir(Path);
-    if sPath = '' then
-      sPath := mbGetCurrentDir;
-    sPath:= IncludeTrailingBackSlash(sPath);
+    FindPath:= ExtractFileDir(Path);
+    if FindPath = '' then begin
+      FindPath := mbGetCurrentDir;
+    end;
+    FindPath:= IncludeTrailingBackSlash(FindPath);
 
     // Assignment of SearchRec.Name also needed if the path points to a specific
     // file and only a single mbFindMatchingFile() check needs to be done below.
@@ -172,38 +174,37 @@ begin
     // Check if searching for all files. If yes don't need to use Mask.
     if (SearchRec.Name <> '*') and (SearchRec.Name <> '') then
     // '*.*' searches for files with a dot in name so mask needs to be checked.
-      begin
-        // If searching for single specific file, just check if it exists and exit.
-        if (Pos('?', SearchRec.Name) = 0) and (Pos('*', SearchRec.Name) = 0) then
-          begin
-            if FileExists(UTF8ToSys(Path)) and (mbFindMatchingFile(SearchRec) = 0) then
-              Exit(0)
-            else
-              Exit(-1);
-          end;
-        Mask := TMask.Create(SearchRec.Name);
-      end;
+    begin
+      // If searching for single specific file, just check if it exists and exit.
+      if (Pos('?', SearchRec.Name) = 0) and (Pos('*', SearchRec.Name) = 0) then
+        begin
+          if FileExists(UTF8ToSys(Path)) and (mbFindMatchingFile(SearchRec) = 0) then
+            Exit(0)
+          else
+            Exit(-1);
+        end;
+      Mask := TMask.Create(SearchRec.Name);
+    end;
 
-    DirPtr:= fpOpenDir(PChar(CeUtf8ToSys(sPath)));
+    DirPtr:= fpOpenDir(PAnsiChar(CeUtf8ToSys(FindPath)));
   end;
   Result:= FindNextEx(SearchRec);
 end;
 {$ENDIF}
 
-function FindNextEx (var SearchRec : TSearchRecEx) : Longint;
+function FindNextEx(var SearchRec: TSearchRecEx): Integer;
 {$IFDEF MSWINDOWS}
 begin
   if FindNextFileW(SearchRec.FindHandle, SearchRec.FindData) then
-    begin
-      Result:= mbFindMatchingFile(SearchRec);
-    end
-  else
+    Result:= mbFindMatchingFile(SearchRec)
+  else begin
     Result:= GetLastError;
+  end;
 end;
 {$ELSE}
 var
-  UnixFindData: PUnixFindData absolute SearchRec.FindHandle;
   PtrDirEnt: pDirent;
+  UnixFindData: PUnixFindData absolute SearchRec.FindHandle;
 begin
   Result:= -1;
   if UnixFindData = nil then Exit;
@@ -224,7 +225,7 @@ end;
 procedure FindCloseEx(var SearchRec: TSearchRecEx);
 {$IFDEF MSWINDOWS}
 begin
-   if SearchRec.FindHandle <> INVALID_HANDLE_VALUE then
+  if SearchRec.FindHandle <> INVALID_HANDLE_VALUE then
     Windows.FindClose(SearchRec.FindHandle);
 end;
 {$ELSE}

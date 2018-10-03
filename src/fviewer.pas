@@ -203,9 +203,7 @@ type
     TimerViewer: TTimer;
     ViewerControl: TViewerControl;
     procedure actExecute(Sender: TObject);
-    procedure btnCopyMoveFileClick(Sender: TObject);
     procedure btnCutTuImageClick(Sender: TObject);
-    procedure btnDeleteFileClick(Sender: TObject);
     procedure btnFullScreenClick(Sender: TObject);
     procedure btnGifMoveClick(Sender: TObject);
     procedure btnGifToBmpClick(Sender: TObject);
@@ -218,6 +216,7 @@ type
       aRect: TRect; aState: TGridDrawState);
     procedure DrawPreviewSelection(Sender: TObject; aCol, aRow: Integer);
     procedure DrawPreviewTopleftChanged(Sender: TObject);
+    procedure FormCloseQuery(Sender: TObject; var CanClose: boolean);
     procedure FormCreate(Sender : TObject);
     procedure FormKeyPress(Sender: TObject; var Key: Char);
     procedure FormResize(Sender: TObject);
@@ -283,7 +282,6 @@ type
     tmp_all: TCustomBitmap;
     FModSizeDialog: TfrmModView;
     FThumbnailManager: TThumbnailManager;
-    FBitmapList: TBitmapList;
     FCommands: TFormCommands;
     FZoomFactor: Double;
     FExif: TExifReader;
@@ -291,9 +289,11 @@ type
 {$IF DEFINED(LCLWIN32)}
     FWindowBounds: TRect;
 {$ENDIF}
+    FThread: TThread;
 
     //---------------------
     WlxPlugins:TWLXModuleList;
+    FWlxModule: TWlxModule;
     ActivePlugin:Integer;
     //---------------------
     function GetListerRect: TRect;
@@ -311,6 +311,8 @@ type
     procedure CutToImage;
     procedure Res(W, H: integer);
     procedure RedEyes;
+    procedure DeleteCurrentFile;
+    procedure EnableActions(AEnabled: Boolean);
     procedure SaveImageAs (Var sExt: String; senderSave: boolean; Quality: integer);
     procedure CreatePreview(FullPathToFile:string; index:integer; delete: boolean = false);
 
@@ -412,6 +414,21 @@ const
   sbpCurrentResolution    = 2;
   sbpFullResolution       = 3;
 
+type
+
+  { TThumbThread }
+
+  TThumbThread = class(TThread)
+  private
+    FOwner: TfrmViewer;
+    procedure ClearList;
+    procedure DoOnTerminate(Sender: TObject);
+  protected
+    procedure Execute; override;
+  public
+    constructor Create(Owner: TfrmViewer);
+  end;
+
 procedure ShowViewer(const FilesToView:TStringList; const aFileSource: IFileSource);
 var
   Viewer: TfrmViewer;
@@ -420,6 +437,8 @@ begin
   Viewer := TfrmViewer.Create(Application, aFileSource);
   Viewer.FileList.Assign(FilesToView);// Make a copy of the list
   Viewer.DrawPreview.RowCount:= Viewer.FileList.Count;
+  Viewer.actMoveFile.Enabled := FilesToView.Count > 1;
+  Viewer.actDeleteFile.Enabled := FilesToView.Count > 1;
   with Viewer.ViewerControl do
   case gViewerMode of
     1: Mode:= vcmText;
@@ -438,6 +457,50 @@ begin
     end;
 end;
 
+{ TThumbThread }
+
+procedure TThumbThread.ClearList;
+var
+  Index: Integer;
+begin
+  for Index:= 0 to FOwner.FileList.Count - 1 do
+  begin
+    FOwner.FileList.Objects[Index].Free;
+    FOwner.FileList.Objects[Index]:= nil;
+  end;
+end;
+
+procedure TThumbThread.DoOnTerminate(Sender: TObject);
+begin
+  FOwner.EnableActions(True);
+  FOwner.FThread := nil;
+  FOwner := nil;
+end;
+
+procedure TThumbThread.Execute;
+var
+  I: Integer = 0;
+begin
+  while (not Terminated) and (I < FOwner.FileList.Count) do
+  begin
+    FOwner.CreatePreview(FOwner.FileList.Strings[I], I);
+    if (I mod 3 = 0) then Synchronize(@FOwner.DrawPreview.Invalidate);
+    Inc(I);
+  end;
+  Synchronize(@FOwner.DrawPreview.Invalidate);
+end;
+
+constructor TThumbThread.Create(Owner: TfrmViewer);
+begin
+  inherited Create(True);
+  Owner.EnableActions(False);
+  OnTerminate := @DoOnTerminate;
+  FreeOnTerminate := True;
+  FOwner := Owner;
+  ClearList;
+  Start;
+end;
+
 constructor TfrmViewer.Create(TheOwner: TComponent; aFileSource: IFileSource;
   aQuickView: Boolean);
 begin
@@ -446,15 +509,17 @@ begin
   FFileSource := aFileSource;
   FLastSearchPos := -1;
   FZoomFactor := 1.0;
+  ActivePlugin := -1;
   FThumbnailManager:= nil;
   FExif:= TExifReader.Create;
   if not bQuickView then Menu:= MainMenu;
-  FBitmapList:= TBitmapList.Create(True);
   FCommands := TFormCommands.Create(Self, actionList);
 
   FontOptionsToFont(gFonts[dcfMain], memFolder.Font);
   memFolder.Color:= gBackColor;
 
+  ViewerControl.TabSpaces := gTabSpaces;
+  ViewerControl.MaxTextWidth := gMaxTextWidth;
 end;
 
 constructor TfrmViewer.Create(TheOwner: TComponent);
@@ -465,8 +530,8 @@ end;
 destructor TfrmViewer.Destroy;
 begin
   FExif.Free;
-  FreeThenNil(FileList);
-  FreeThenNil(FThumbnailManager);
+  FreeAndNil(FileList);
+  FreeAndNil(FThumbnailManager);
   inherited Destroy;
   FreeAndNil(WlxPlugins);
   FFileSource := nil; // If this is temp file source, the files will be deleted.
@@ -479,26 +544,29 @@ var
   aName: String;
   dwFileAttributes: TFileAttrs;
 begin
+  FLastSearchPos := -1;
+  Caption := aFileName;
+  ViewerControl.FileName := EmptyStr;
+
+  // Clear text on status bar.
+  for i := 0 to Status.Panels.Count - 1 do
+    Status.Panels[i].Text := '';
+
   dwFileAttributes := mbFileGetAttr(aFileName);
 
   if dwFileAttributes = faInvalidAttributes then
   begin
-    ShowMessage(rsMsgErrNoFiles);
+    ActivatePanel(pnlFolder);
+    memFolder.Font.Color:= clRed;
+    memFolder.Lines.Text:= rsMsgErrNoFiles;
     Exit;
   end;
-
-  FLastSearchPos := -1;
-  Caption := aFileName;
 
   if bQuickView then
   begin
     iActiveFile := 0;
     FileList.Text := aFileName;
   end;
-
-  // Clear text on status bar.
-  for i := 0 to Status.Panels.Count - 1 do
-    Status.Panels[i].Text := '';
 
   Screen.Cursor:= crHourGlass;
   try
@@ -523,14 +591,8 @@ begin
     else
       begin
         ViewerControl.FileName := aFileName;
-        if ViewerControl.IsFileOpen then
           ActivatePanel(pnlText)
-        else begin
-          ActivatePanel(pnlFolder);
-          memFolder.Font.Color:= clRed;
-          memFolder.Lines.Text:= rsMsgErrERead;
         end;
-      end;
 
     Status.Panels[sbpFileName].Text:= aFileName;
   finally
@@ -541,7 +603,7 @@ end;
 procedure TfrmViewer.LoadNextFile(const aFileName: String);
 begin
   if bPlugin then
-    with WlxPlugins.GetWlxModule(ActivePlugin) do
+    with FWlxModule do
     begin
       if FileParamVSDetectStr(aFileName, False) then
       begin
@@ -575,7 +637,7 @@ end;
 
 procedure TfrmViewer.FormResize(Sender: TObject);
 begin
-  if bPlugin then WlxPlugins.GetWlxModule(ActivePlugin).ResizeWindow(GetListerRect);
+  if bPlugin then FWlxModule.ResizeWindow(GetListerRect);
 end;
 
 procedure TfrmViewer.FormShow(Sender: TObject);
@@ -881,20 +943,23 @@ begin
       if delete then
         begin
           FThumbnailManager.RemovePreview(FullPathToFile); // delete thumb if need
-          if pnlPreview.Visible then FBitmapList.Delete(index);
+          if pnlPreview.Visible then begin
+            FileList.Objects[Index].Free;
+            FileList.Objects[Index]:= nil;
+          end;
         end
       else
         begin
           bmpThumb:= FThumbnailManager.CreatePreview(FullPathToFile);
           // Insert to the BitmapList
-          FBitmapList.Insert(index, bmpThumb);
+          FileList.Objects[Index]:= bmpThumb;
         end;
     end;
 end;
 
 procedure TfrmViewer.WMSetFocus(var Message: TLMSetFocus);
 begin
-  if bPlugin then WlxPlugins.GetWlxModule(ActivePlugin).SetFocus;
+  if bPlugin then FWlxModule.SetFocus;
 end;
 
 procedure TfrmViewer.RedEyes;
@@ -961,6 +1026,30 @@ begin
   Image.Picture.Bitmap.Canvas.Draw (StartX,StartY,tmp);
   CreateTmp;
   tmp.Free;
+end;
+
+procedure TfrmViewer.DeleteCurrentFile;
+begin
+  CreatePreview(FileList.Strings[iActiveFile], iActiveFile, true);
+  mbDeleteFile(FileList.Strings[iActiveFile]);
+  FileList.Delete(iActiveFile);
+
+  actMoveFile.Enabled := FileList.Count > 1;
+  actDeleteFile.Enabled := FileList.Count > 1;
+  if iActiveFile >= FileList.Count then
+    iActiveFile:= FileList.Count;
+
+  LoadFile(iActiveFile);
+  DrawPreview.Repaint;
+  SplitterChangeBounds;
+end;
+
+procedure TfrmViewer.EnableActions(AEnabled: Boolean);
+begin
+  actSave.Enabled:= AEnabled;
+  actCopyFile.Enabled:= AEnabled;
+  actMoveFile.Enabled:= AEnabled and (FileList.Count > 1);
+  actDeleteFile.Enabled:= AEnabled and (FileList.Count > 1);
 end;
 
 procedure TfrmViewer.CutToImage;
@@ -1043,15 +1132,29 @@ end;
 
 function TfrmViewer.CheckPlugins(const sFileName: String; bForce: Boolean = False): Boolean;
 var
-  I: Integer;
+  I, J: Integer;
   AFileName: String;
   ShowFlags: Integer;
   WlxModule: TWlxModule;
+  Start, Finish: Integer;
 begin
   AFileName:= ExcludeTrailingBackslash(sFileName);
   ShowFlags:= IfThen(bForce, lcp_forceshow, 0) or PluginShowFlags;
   // DCDebug('WlXPlugins.Count = ' + IntToStr(WlxPlugins.Count));
-  for I:= 0 to WlxPlugins.Count - 1 do
+  for J := 1 to 2 do
+  begin
+    // Find after active plugin
+    if (J = 1) then begin
+      Start := ActivePlugin + 1;
+      Finish :=  WlxPlugins.Count - 1;
+    end
+    // Find before active plugin
+    else begin
+      Start := 0;
+      Finish := ActivePlugin;
+    end;
+    for I:= Start to Finish do
+    begin
   if WlxPlugins.GetWlxModule(I).FileParamVSDetectStr(AFileName, bForce) then
   begin
     DCDebug('I = ' + IntToStr(I));
@@ -1064,24 +1167,28 @@ begin
       Continue;
     end;
     ActivePlugin:= I;
+        FWlxModule:= WlxModule;
     WlxModule.ResizeWindow(GetListerRect);
     miPrint.Enabled:= WlxModule.CanPrint;
     // Set focus to plugin window
     if not bQuickView then WlxModule.SetFocus;
     Exit(True);
   end;
+    end;
+  end;
   // Plugin not found
   ActivePlugin:= -1;
+  FWlxModule:= nil;
   Result:= False;
 end;
 
 procedure TfrmViewer.ExitPluginMode;
 begin
-  if (WlxPlugins.Count > 0) and (ActivePlugin >= 0) then
-  begin
-    WlxPlugins.GetWlxModule(ActivePlugin).CallListCloseWindow;
+  if Assigned(FWlxModule) then begin
+    FWlxModule.CallListCloseWindow;
   end;
   bPlugin:= False;
+  FWlxModule:= nil;
   ActivePlugin:= -1;
   miPrint.Enabled:= False;
 end;
@@ -1135,12 +1242,7 @@ begin
           CopyFile(FileList.Strings[iActiveFile],FModSizeDialog.Path+PathDelim+ExtractFileName(FileList.Strings[iActiveFile]));
           if AViewerAction = vcmaMove then
           begin
-            CreatePreview(FileList.Strings[iActiveFile], iActiveFile, true);
-            mbDeleteFile(FileList.Strings[iActiveFile]);
-            FileList.Delete(iActiveFile);
-            LoadFile(iActiveFile);
-            DrawPreview.Repaint;
-            SplitterChangeBounds;
+            DeleteCurrentFile;
           end;
         end;
     end;
@@ -1259,8 +1361,8 @@ var
   sFileName: string;
   ico : TIcon = nil;
   jpg : TJpegImage = nil;
+  fsFileStream: TFileStreamEx;
   pnm : TPortableAnyMapGraphic = nil;
-  fsFileStream: TFileStreamEx = nil;
 begin
   if senderSave then
     sFileName:= FileList.Strings[iActiveFile]
@@ -1272,6 +1374,7 @@ begin
 
   try
     fsFileStream:= TFileStreamEx.Create(sFileName, fmCreate);
+    try
     if (sExt = '.jpg') or (sExt = '.jpeg') then
       begin
         jpg := TJpegImage.Create;
@@ -1282,8 +1385,8 @@ begin
         finally
           jpg.Free;
         end;
-      end;
-    if sExt = '.ico' then
+        end
+      else if sExt = '.ico' then
       begin
         ico := TIcon.Create;
         try
@@ -1292,8 +1395,8 @@ begin
         finally
           ico.Free;
         end;
-      end;
-    if sExt = '.pnm' then
+        end
+      else if sExt = '.pnm' then
       begin
         pnm := TPortableAnyMapGraphic.Create;
         try
@@ -1302,14 +1405,17 @@ begin
         finally
           pnm.Free;
         end;
-      end;
-    if (sExt = '.png') or (sExt = '.bmp') then
+        end
+      else if (sExt = '.png') or (sExt = '.bmp') then
       begin
         Image.Picture.SaveToStreamWithFileExt(fsFileStream, sExt);
       end;
   finally
-    FreeThenNil(fsFileStream);
+      FreeAndNil(fsFileStream);
   end;
+  except
+    on E: Exception do msgError(E.Message);
+end;
 end;
 
 procedure TfrmViewer.pnlImageResize(Sender: TObject);
@@ -1365,7 +1471,7 @@ begin
     DrawPreview.RowCount:= FileList.Count div DrawPreview.ColCount + 1
   else
     DrawPreview.RowCount:= FileList.Count div DrawPreview.ColCount;
-  if bPlugin then WlxPlugins.GetWlxModule(ActivePlugin).ResizeWindow(GetListerRect);
+  if bPlugin then FWlxModule.ResizeWindow(GetListerRect);
 end;
 
 procedure TfrmViewer.TimerScreenshotTimer(Sender: TObject);
@@ -1390,9 +1496,9 @@ begin
       sName:= ExtractOnlyFileName(FileList.Strings[i]);
       sExt:= ExtractFileExt(FileList.Strings[i]);
       DrawPreview.Canvas.FillRect(aRect); // Clear cell
-      if (i >= 0) and (i < FBitmapList.Count) then
+      bmpThumb:= TBitmap(FileList.Objects[i]);
+      if Assigned(bmpThumb) then
         begin
-          bmpThumb:= FBitmapList[i];
           z:= DrawPreview.Canvas.TextHeight('Pp') + 4;
           X:= aRect.Left + (aRect.Right - aRect.Left - bmpThumb.Width) div 2;
           Y:= aRect.Top + (aRect.Bottom - aRect.Top - bmpThumb.Height - z) div 2;
@@ -1432,6 +1538,15 @@ end;
 procedure TfrmViewer.DrawPreviewTopleftChanged(Sender: TObject);
 begin
   DrawPreview.LeftCol:= 0;
+end;
+
+procedure TfrmViewer.FormCloseQuery(Sender: TObject; var CanClose: boolean);
+begin
+  if Assigned(FThread) then
+  begin
+    FThread.Terminate;
+    FThread.WaitFor;
+  end;
 end;
 
 procedure TfrmViewer.TimerViewerTimer(Sender: TObject);
@@ -1506,7 +1621,9 @@ end;
 
 procedure TfrmViewer.UpdateImagePlacement;
 begin
-  if bImage then
+  if bPlugin then
+    FWlxModule.CallListSendCommand(lc_newparams , PluginShowFlags)
+  else if bImage then
   begin
     if gboxHightlight.Visible then 
     begin
@@ -1516,9 +1633,7 @@ begin
       UndoTmp;
     end;
     AdjustImageSize;
-  end
-  else if bPlugin then
-    WlxPlugins.GetWLxModule(ActivePlugin).CallListSendCommand(lc_newparams , PluginShowFlags)
+end;
 end;
 
 procedure TfrmViewer.FormCreate(Sender: TObject);
@@ -1534,6 +1649,7 @@ begin
   FontOptionsToFont(gFonts[dcfViewer], ViewerControl.Font);
 
   FileList := TStringList.Create;
+  FileList.OwnsObjects:= True;
 
   WlxPlugins:=TWLXModuleList.Create;
   WlxPlugins.Assign(gWLXPlugins);
@@ -1628,53 +1744,6 @@ end;
 procedure TfrmViewer.btnCutTuImageClick(Sender: TObject);
 begin
   CutToImage;
-end;
-
-procedure TfrmViewer.btnDeleteFileClick(Sender: TObject);
-begin
-  if msgYesNo(Format(rsMsgDelSel, [FileList.Strings[iActiveFile]])) then
-    begin
-      CreatePreview(FileList.Strings[iActiveFile], iActiveFile, true);
-      mbDeleteFile(FileList.Strings[iActiveFile]);
-      FileList.Delete(iActiveFile);
-      LoadFile(iActiveFile);
-      DrawPreview.Repaint;
-      SplitterChangeBounds;
-    end;
-end;
-
-procedure TfrmViewer.btnCopyMoveFileClick(Sender: TObject);
-begin
-  FModSizeDialog:= TfrmModView.Create(Application);
-  try
-    FModSizeDialog.pnlQuality.Visible:= False;
-    FModSizeDialog.pnlSize.Visible:= False;
-    FModSizeDialog.pnlCopyMoveFile.Visible:= True;
-    if Sender = btnMoveFile then
-      FModSizeDialog.Caption:= rsDlgMv
-    else
-      FModSizeDialog.Caption:= rsDlgCp;
-    if FModSizeDialog.ShowModal = mrOk then
-    begin
-      if FModSizeDialog.Path = '' then
-        msgError(rsMsgInvalidPath)
-      else
-        begin
-          CopyFile(FileList.Strings[iActiveFile],FModSizeDialog.Path+PathDelim+ExtractFileName(FileList.Strings[iActiveFile]));
-          if (Sender = btnMoveFile) or (Sender = btnMoveFile1) then
-          begin
-            CreatePreview(FileList.Strings[iActiveFile], iActiveFile, true);
-            mbDeleteFile(FileList.Strings[iActiveFile]);
-            FileList.Delete(iActiveFile);
-            LoadFile(iActiveFile);
-            DrawPreview.Repaint;
-            SplitterChangeBounds;
-          end;
-        end;
-    end;
-  finally
-    FreeAndNil(FModSizeDialog);
-  end;
 end;
 
 procedure TfrmViewer.actExecute(Sender: TObject);
@@ -1804,7 +1873,6 @@ begin
 
 
   FreeAndNil(FFindDialog);
-  FreeAndNil(FBitmapList);
   HotMan.UnRegister(Self);
 end;
 
@@ -2030,16 +2098,18 @@ var
 begin
   // in first use create dialog
   if not Assigned(FFindDialog) then
-     FFindDialog:= TfrmFindView.Create(Application);
+     FFindDialog:= TfrmFindView.Create(Self);
 
-  if (bQuickSearch and gFirstTextSearch) or not bQuickSearch then
+  if (bQuickSearch and gFirstTextSearch) or (not bQuickSearch) or (bPlugin and FFindDialog.chkHex.Checked) then
     begin
       if bPlugin then
         begin
+        FFindDialog.chkHex.Checked:= False;
           // if plugin has specific search dialog
-          if WlxPlugins.GetWLxModule(ActivePlugin).CallListSearchDialog(0) = LISTPLUGIN_OK then
+        if FWlxModule.CallListSearchDialog(0) = LISTPLUGIN_OK then
             Exit;
         end;
+      FFindDialog.chkHex.Visible:= not bPlugin;
       // Load search history
       FFindDialog.cbDataToFind.Items.Assign(glsSearchHistory);
       sSearchTextU:= ViewerControl.Selection;
@@ -2057,7 +2127,7 @@ begin
       if bPlugin then
         begin
           // if plugin has specific search dialog
-          if WlxPlugins.GetWLxModule(ActivePlugin).CallListSearchDialog(1) = LISTPLUGIN_OK then
+        if FWlxModule.CallListSearchDialog(1) = LISTPLUGIN_OK then
             Exit;
         end;
       if glsSearchHistory.Count > 0 then
@@ -2069,30 +2139,43 @@ begin
       iSearchParameter:= 0;
       if bSearchBackwards then iSearchParameter:= lcs_backwards;
       if FFindDialog.cbCaseSens.Checked then iSearchParameter:= iSearchParameter or lcs_matchcase;
-      WlxPlugins.GetWLxModule(ActivePlugin).CallListSearchText(sSearchTextU, iSearchParameter);
+      FWlxModule.CallListSearchText(sSearchTextU, iSearchParameter);
     end
-  else
+  else if ViewerControl.IsFileOpen then
     begin
+      T:= GetTickCount64;
+      if not FFindDialog.chkHex.Checked then
+        sSearchTextA:= ViewerControl.ConvertFromUTF8(sSearchTextU)
+      else try
+        sSearchTextA:= HexToBin(sSearchTextU);
+      except
+        on E: EConvertError do
+        begin
+          msgError(E.Message);
+          Exit;
+        end;
+      end;
+
       // Choose search start position.
       if not bSearchBackwards then
       begin
+        iSearchParameter:= Length(sSearchTextA);
         if FLastSearchPos = -1 then
           FLastSearchPos := 0
-        else if FLastSearchPos < ViewerControl.FileSize - 1 then
-          FLastSearchPos := FLastSearchPos + 1;
+        else if FLastSearchPos < ViewerControl.FileSize - iSearchParameter then
+          FLastSearchPos := FLastSearchPos + iSearchParameter;
       end
       else
       begin
+        iSearchParameter:= IfThen(ViewerControl.Encoding in ViewerEncodingDoubleByte, 2, 1);
         if FLastSearchPos = -1 then
           FLastSearchPos := ViewerControl.FileSize - 1
-        else if FLastSearchPos > 0 then
-          FLastSearchPos := FLastSearchPos - 1;
+        else if FLastSearchPos >= iSearchParameter then
+          FLastSearchPos := FLastSearchPos - iSearchParameter;
       end;
 
-      T:= GetTickCount64;
-      sSearchTextA:= ViewerControl.ConvertFromUTF8(sSearchTextU);
-      // Using standard search algorithm if case sensitive and multibyte
-      if FFindDialog.cbCaseSens.Checked and (ViewerControl.Encoding in ViewerEncodingMultiByte) then
+      // Using standard search algorithm if hex or case sensitive and multibyte
+      if FFindDialog.chkHex.Checked or (FFindDialog.cbCaseSens.Checked and (ViewerControl.Encoding in ViewerEncodingMultiByte)) then
       begin
         PAnsiAddr := PosMem(ViewerControl.GetDataAdr, ViewerControl.FileSize,
                             FLastSearchPos, sSearchTextA,
@@ -2203,7 +2286,7 @@ begin
 
   if Panel = nil then
   begin
-    Status.Panels[sbpPluginName].Text:= WlxPlugins.GetWLxModule(ActivePlugin).Name;
+    Status.Panels[sbpPluginName].Text:= FWlxModule.Name;
   end
   else if Panel = pnlText then
   begin
@@ -2256,6 +2339,7 @@ end;
 
 procedure TfrmViewer.cm_Reload(const Params: array of string);
 begin
+  ExitPluginMode;
   LoadFile(iActiveFile);
 end;
 
@@ -2269,7 +2353,7 @@ begin
 
   if bPlugin then
   begin
-    if (WlxPlugins.GetWlxModule(ActivePlugin).CallListLoadNext(Self.Handle, FileList[I], PluginShowFlags) <> LISTPLUGIN_ERROR) then
+    if (FWlxModule.CallListLoadNext(Self.Handle, FileList[I], PluginShowFlags) <> LISTPLUGIN_ERROR) then
     Exit;
   end;
   ExitPluginMode;
@@ -2296,10 +2380,10 @@ begin
 
   if bPlugin then
   begin
-    if (WlxPlugins.GetWlxModule(ActivePlugin).CallListLoadNext(Self.Handle, FileList[I], PluginShowFlags) <> LISTPLUGIN_ERROR) then
+    if (FWlxModule.CallListLoadNext(Self.Handle, FileList[I], PluginShowFlags) <> LISTPLUGIN_ERROR) then
       Exit;
-
   end;
+  ExitPluginMode;
   if pnlPreview.Visible then
     begin
       if DrawPreview.Col = 0  then
@@ -2315,17 +2399,20 @@ end;
 
 procedure TfrmViewer.cm_MoveFile(const Params: array of string);
 begin
-  CopyMoveFile(vcmaMove);
+  if actMoveFile.Enabled then CopyMoveFile(vcmaMove);
 end;
 
 procedure TfrmViewer.cm_CopyFile(const Params: array of string);
 begin
-  CopyMoveFile(vcmaCopy);
+  if actCopyFile.Enabled then CopyMoveFile(vcmaCopy);
 end;
 
 procedure TfrmViewer.cm_DeleteFile(const Params: array of string);
 begin
-  btnDeleteFileClick(Self);
+  if actDeleteFile.Enabled and msgYesNo(Format(rsMsgDelSel, [FileList.Strings[iActiveFile]])) then
+  begin
+    DeleteCurrentFile;
+end;
 end;
 
 procedure TfrmViewer.cm_StretchImage(const Params: array of string);
@@ -2354,6 +2441,8 @@ procedure TfrmViewer.cm_Save(const Params: array of string);
 var
   sExt: String;
 begin
+  if actSave.Enabled then
+  begin
   DrawPreview.BeginUpdate;
   try
     CreatePreview(FileList.Strings[iActiveFile], iActiveFile, True);
@@ -2363,6 +2452,7 @@ begin
   finally
     DrawPreview.EndUpdate;
   end;
+end;
 end;
 
 procedure TfrmViewer.cm_SaveAs(const Params: array of string);
@@ -2568,7 +2658,7 @@ end;
 procedure TfrmViewer.cm_CopyToClipboard(const Params: array of string);
 begin
   if bPlugin then
-   WlxPlugins.GetWLxModule(ActivePlugin).CallListSendCommand(lc_copy, 0)
+   FWlxModule.CallListSendCommand(lc_copy, 0)
   else begin
     if (miGraphics.Checked)and(Image.Picture<>nil)and(Image.Picture.Bitmap<>nil)then
     begin
@@ -2589,7 +2679,7 @@ end;
 procedure TfrmViewer.cm_SelectAll(const Params: array of string);
 begin
   if bPlugin then
-     WlxPlugins.GetWLxModule(ActivePlugin).CallListSendCommand(lc_selectall, 0)
+    FWlxModule.CallListSendCommand(lc_selectall, 0)
   else
       ViewerControl.SelectAll;
 end;
@@ -2606,33 +2696,30 @@ end;
 
 procedure TfrmViewer.cm_FindNext(const Params: array of string);
 begin
-  DoSearch(True, False);
+  if not miGraphics.Checked then DoSearch(True, False);
 end;
 
 procedure TfrmViewer.cm_FindPrev(const Params: array of string);
 begin
-  DoSearch(True, True);
+  if not miGraphics.Checked then DoSearch(True, True);
 end;
 
 procedure TfrmViewer.cm_Preview(const Params: array of string);
-var
-  i: integer;
 begin
   miPreview.Checked:= not (miPreview.Checked);
   pnlPreview.Visible := miPreview.Checked;
   Splitter.Visible := pnlPreview.Visible;
-  if not pnlPreview.Visible then
-    FBitmapList.Clear;
-  Application.ProcessMessages;
+
   if miPreview.Checked then
    begin
-     for i:=0 to FileList.Count-1 do
-     CreatePreview(FileList.Strings[i], i);
-     DrawPreview.FixedRows:= 0;
-     DrawPreview.FixedCols:= 0;
-     DrawPreview.Refresh;
+    FThread:= TThumbThread.Create(Self)
+  end
+  else if Assigned(FThread) then
+  begin
+    FThread.Terminate;
+    FThread.WaitFor;
    end;
-  if bPlugin then WlxPlugins.GetWlxModule(ActivePlugin).ResizeWindow(GetListerRect);
+  if bPlugin then FWlxModule.ResizeWindow(GetListerRect);
 end;
 
 procedure TfrmViewer.cm_ShowAsText(const Params: array of string);
@@ -2681,7 +2768,12 @@ begin
 end;
 
 procedure TfrmViewer.cm_ShowPlugins(const Params: array of string);
+var
+  Index: Integer;
 begin
+  Index := ActivePlugin;
+  ExitPluginMode;
+  ActivePlugin := Index;
   bPlugin:= CheckPlugins(FileList.Strings[iActiveFile], True);
   if bPlugin then
   begin

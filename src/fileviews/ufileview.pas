@@ -165,7 +165,7 @@ type
     function FileListLoaded: Boolean;
     function GetCurrentAddress: String;
     function GetCurrentLocation: String;
-    function GetNotebookPage: TCustomPage;
+    function GetNotebookPage: TControl;
     function GetCurrentFileSource: IFileSource;
     function GetCurrentFileSourceIndex: Integer;
     function GetCurrentPathIndex: Integer;
@@ -375,8 +375,6 @@ type
     function Clone({%H-}NewParent: TWinControl): TFileView; virtual;
     procedure CloneTo(AFileView: TFileView); virtual;
 
-    procedure EachViewUpdateHeader(AFileView: TFileView; {%H-}UserData: Pointer);
-
     procedure AddFileSource(aFileSource: IFileSource; aPath: String); virtual;
     procedure RemoveCurrentFileSource; virtual;
     procedure RemoveAllFileSources; virtual;
@@ -528,7 +526,7 @@ type
     property Sorting: TFileSortings read FSortings write SetSorting;
     property WatcherActive: Boolean read GetWatcherActive;
 
-    property NotebookPage: TCustomPage read GetNotebookPage;
+    property NotebookPage: TControl read GetNotebookPage;
     property OnBeforeChangePath : TOnBeforeChangePath read FOnBeforeChangePath write FOnBeforeChangePath;
     property OnAfterChangePath : TOnAfterChangePath read FOnAfterChangePath write FOnAfterChangePath;
     property OnChangeActiveFile : TOnChangeActiveFile read FOnChangeActiveFile write FOnChangeActiveFile;
@@ -1022,10 +1020,10 @@ begin
   end;
 end;
 
-function TFileView.GetNotebookPage: TCustomPage;
+function TFileView.GetNotebookPage: TControl;
 begin
-  if Parent is TCustomPage then
-    Result := Parent as TCustomPage
+  if Parent is TFileViewPage then
+    Result := TFileViewPage(Parent)
   else
     Result := nil;
 end;
@@ -2211,15 +2209,6 @@ begin
     if Assigned(ThisFileViewPage) and Assigned(OtherFileViewPage) then
       AFileView.SetActive(ThisFileViewPage.Notebook = OtherFileViewPage.Notebook, False);
   end;
-end;
-
-procedure TFileView.EachViewUpdateHeader(AFileView: TFileView; UserData: Pointer);
-begin
-
-//  (Self as TFileViewWithPanels).Header.UpdateFontSizes;
-  TFileViewWithPanels(AFileView).Header.UpdateFontSizes;
-//  UpdateView;
-
 end;
 
 function TFileView.GetCurrentWorkType: TFileViewWorkType;

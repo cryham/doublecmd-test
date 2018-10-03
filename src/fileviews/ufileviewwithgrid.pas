@@ -17,8 +17,11 @@ type
 
   TFileViewGrid = class(TDrawGrid)
   protected
+    FLastMouseMoveTime: QWord;
+    FLastMouseScrollTime: QWord;
     FFileView: TFileViewWithGrid;
   protected
+    procedure Scroll(Message: Cardinal; ScrollCode: SmallInt);
     {$IF lcl_fullversion < 1080003}
     function SelectCell(aCol, aRow: Integer): Boolean; override;
     {$ENDIF}
@@ -40,14 +43,14 @@ type
     procedure UpdateView; virtual; abstract;
     procedure CalculateColRowCount; virtual; abstract;
     procedure CalculateColumnWidth; virtual; abstract;
-    function  CellToIndex(ACol, ARow: Integer): Integer; virtual; abstract;
-    procedure IndexToCell(Index: Integer; out ACol, ARow: Integer); virtual; abstract;
     {$if lcl_fullversion >= 1070000}
     procedure DoAutoAdjustLayout(const AMode: TLayoutAdjustmentPolicy;
                 const AXProportion, AYProportion: Double); override;
     {$endif}
   public
     constructor Create(AOwner: TComponent; AParent: TWinControl); reintroduce; virtual;
+    function  CellToIndex(ACol, ARow: Integer): Integer; virtual; abstract;
+    procedure IndexToCell(Index: Integer; out ACol, ARow: Integer); virtual; abstract;
     property BorderWidth: Integer read GetBorderWidth;
   end;
 
@@ -83,7 +86,7 @@ type
     procedure RedrawFile(FileIndex: PtrInt); override;
     procedure RedrawFile(DisplayFile: TDisplayFile); override;
     procedure RedrawFiles; override;
-    procedure SetActiveFile(FileIndex: PtrInt; ScrollTo: Boolean); override;
+    procedure SetActiveFile(FileIndex: PtrInt; ScrollTo: Boolean; aLastTopRowIndex: PtrInt = -1); override;
     procedure DoFileUpdated(AFile: TDisplayFile; UpdatedProperties: TFilePropertiesTypes = []); override;
     procedure DoHandleKeyDown(var Key: Word; Shift: TShiftState); override;
     procedure UpdateFlatFileName; override;
@@ -109,7 +112,7 @@ type
 implementation
 
 uses
-  LCLIntf, LCLType, LCLProc, LazUTF8, Math,
+  LCLIntf, LCLType, LCLProc, LazUTF8, Math, LMessages,
   DCStrUtils, uGlobs, uPixmapManager, uKeyboard,
   uDCUtils, fMain,
   uFileFunctions;
@@ -186,6 +189,17 @@ begin
   inherited KeyDown(Key, Shift);
 end;
 
+procedure TFileViewGrid.Scroll(Message: Cardinal; ScrollCode: SmallInt);
+var
+  Msg: TLMScroll;
+begin
+  Msg.Msg := Message;
+  Msg.ScrollCode := ScrollCode;
+  Msg.SmallPos := 1; // How many lines scroll
+  Msg.ScrollBar := Handle;
+  Dispatch(Msg);
+end;
+
 {$IF lcl_fullversion < 1080003}
 // Workaround for Lazarus issue 31942.
 function TFileViewGrid.SelectCell(aCol, aRow: Integer): Boolean;
@@ -227,6 +241,9 @@ end;
 procedure TFileViewGrid.MouseDown(Button: TMouseButton; Shift: TShiftState; X,
   Y: Integer);
 begin
+  FLastMouseMoveTime := 0;
+  FLastMouseScrollTime := 0;
+
   if FFileView.IsLoadingFileList then Exit;
 
 {$IF DECLARED(lcl_fullversion) and (lcl_fullversion >= 093100)}
@@ -524,11 +541,11 @@ begin
   dgPanel.CalculateColumnWidth;
   SetFilesDisplayItems;
 
-  if SetActiveFileNow(RequestedActiveFile) then
+  if SetActiveFileNow(RequestedActiveFile, FLastTopRowIndex) then
     RequestedActiveFile := ''
   else
     // Requested file was not found, restore position to last active file.
-    SetActiveFileNow(LastActiveFile);
+    SetActiveFileNow(LastActiveFile, FLastTopRowIndex);
 
   Notify([fvnVisibleFilePropertiesChanged]);
 
@@ -703,7 +720,7 @@ begin
   TabHeader.UpdateSorting(Sorting);
 end;
 
-procedure TFileViewWithGrid.SetActiveFile(FileIndex: PtrInt; ScrollTo: Boolean);
+procedure TFileViewWithGrid.SetActiveFile(FileIndex: PtrInt; ScrollTo: Boolean; aLastTopRowIndex: PtrInt = -1);
 var
   ACol, ARow: Integer;
 begin
@@ -756,7 +773,7 @@ end;
 
 procedure TFileViewWithGrid.dgPanelSelection(Sender: TObject; aCol, aRow: Integer);
 begin
-  DoFileIndexChanged(dgPanel.CellToIndex(aCol, aRow));
+  DoFileIndexChanged(dgPanel.CellToIndex(aCol, aRow), dgPanel.TopRow);
   UpdateFooterDetails;
 end;
 

@@ -209,9 +209,11 @@ begin
                                               not SameText(URI.Protocol, 'smb')
                                               );
           if not Assigned(Result) then
-          begin
+          try
             // Create new FileSource with given URI
             Result := aFileSourceClass.Create(URI);
+          except
+            Result := nil;
           end;
         end
       // If found FileSource is same as current then simply change path
@@ -304,7 +306,7 @@ begin
 
   sPath:= aFileView.CurrentPath + IncludeTrailingPathDelimiter(aFile.Name);
   try
-    if FindFirstEx(sPath + AllFilesMask, faAnyFile, SearchRec) = 0 then
+    if FindFirstEx(sPath + AllFilesMask, 0, SearchRec) = 0 then
       begin
         with aFileView do
         CurrentPath := CurrentPath + IncludeTrailingPathDelimiter(aFile.Name);
